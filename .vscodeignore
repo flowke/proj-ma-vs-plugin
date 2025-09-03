@@ -1,0 +1,12 @@
+node_modules
+webview/node_modules
+out/test
+src
+.vscode/**
+**/*.map
+**/*.ts
+**/*.tsx
+**/*.test.*
+**/*.spec.*
+README.md
+
