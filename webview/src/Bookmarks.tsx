@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Layout, List, Modal, Form, Input, message, Spin } from 'antd';
-import { DeleteOutlined, LinkOutlined, GlobalOutlined } from '@ant-design/icons';
+import { Button, Layout, List, Modal, Form, Input, message, Spin, Popconfirm } from 'antd';
+import { DeleteOutlined, CopyOutlined, GlobalOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { BookmarkItem, ProjectConfig } from './types';
 import { DEFAULT_CONFIG } from './types';
 import { postMessage, isVSCodeApiAvailable } from './vscode-api';
@@ -21,7 +21,26 @@ export default function Bookmarks() {
       
       if (msg?.type === 'configLoaded' && msg.payload) {
         console.log('[Bookmarks] configLoaded:', msg.payload);
+        console.log('[Bookmarks] Updated bookmarks:', msg.payload.bookmarks);
         setConfig(msg.payload);
+      }
+      
+      if (msg?.type === 'bookmarkCreated' && msg.payload) {
+        console.log('[Bookmarks] bookmarkCreated:', msg.payload);
+        const { success, error } = msg.payload;
+        
+        setLoading(false);
+        
+        if (success) {
+          message.success('书签添加成功');
+          setShowAddModal(false);
+          form.resetFields();
+        } else {
+          message.error(error || '添加书签失败');
+          // 失败时也要关闭弹窗
+          setShowAddModal(false);
+          form.resetFields();
+        }
       }
       
       if (msg?.type === 'bookmarkAdded' && msg.payload) {
@@ -40,6 +59,48 @@ export default function Bookmarks() {
           setShowAddModal(false);
           form.resetFields();
         }
+      }
+      
+      if (msg?.type === 'bookmarkUpdated' && msg.payload) {
+        console.log('[Bookmarks] bookmarkUpdated:', msg.payload);
+        const { bookmarkId, title, icon } = msg.payload;
+        
+        // 更新特定书签的信息
+        setConfig(prevConfig => {
+          if (!prevConfig) return prevConfig;
+          
+          const updatedBookmarks = (prevConfig.bookmarks || []).map(bookmark => 
+            bookmark.id === bookmarkId 
+              ? { ...bookmark, title, icon, isParsing: false }
+              : bookmark
+          );
+          
+          return {
+            ...prevConfig,
+            bookmarks: updatedBookmarks
+          };
+        });
+      }
+      
+      if (msg?.type === 'bookmarkReparsing' && msg.payload) {
+        console.log('[Bookmarks] bookmarkReparsing:', msg.payload);
+        const { bookmarkId } = msg.payload;
+        
+        // 设置书签为解析中状态
+        setConfig(prevConfig => {
+          if (!prevConfig) return prevConfig;
+          
+          const updatedBookmarks = (prevConfig.bookmarks || []).map(bookmark => 
+            bookmark.id === bookmarkId 
+              ? { ...bookmark, isParsing: true }
+              : bookmark
+          );
+          
+          return {
+            ...prevConfig,
+            bookmarks: updatedBookmarks
+          };
+        });
       }
     };
     
@@ -80,10 +141,10 @@ export default function Bookmarks() {
       // 验证 URL 格式
       new URL(url);
 
-      // 发送消息到扩展端创建书签
-      console.log('[Bookmarks] Requesting bookmark creation for:', url);
+      // 发送消息到扩展端快速创建书签
+      console.log('[Bookmarks] Requesting quick bookmark creation for:', url);
       postMessage({ 
-        type: 'addBookmark', 
+        type: 'createBookmarkQuick', 
         payload: { url } 
       });
 
@@ -104,6 +165,42 @@ export default function Bookmarks() {
     setConfig(updatedConfig);
     postMessage({ type: 'saveConfig', payload: updatedConfig });
     message.success('书签删除成功');
+  };
+
+  const handleReparseBookmark = (bookmark: BookmarkItem) => {
+    console.log('[Bookmarks] Reparsing bookmark:', bookmark);
+    postMessage({ 
+      type: 'reparseBookmark', 
+      payload: { 
+        bookmarkId: bookmark.id,
+        url: bookmark.url 
+      } 
+    });
+  };
+
+  const handleCopyUrl = async (url: string) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(url);
+        message.success('URL 已复制到剪贴板');
+      } else {
+        // 降级方案：使用传统的复制方法
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+        message.success('URL 已复制到剪贴板');
+      }
+    } catch (error) {
+      console.error('复制失败:', error);
+      message.error('复制失败，请手动复制');
+    }
   };
 
   const handleOpenBookmark = (url: string) => {
@@ -168,7 +265,8 @@ export default function Bookmarks() {
                           borderRadius: '2px',
                         }}
                         onError={(e) => {
-                          // 如果图标加载失败，显示默认图标
+                          // 如果图标加载失败，隐藏图片，显示默认图标
+                          console.log('[Bookmarks] Icon load failed for:', bookmark.icon);
                           e.currentTarget.style.display = 'none';
                           const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
                           if (nextElement) {
@@ -196,11 +294,23 @@ export default function Bookmarks() {
                         cursor: 'pointer',
                         lineHeight: '1.2',
                         marginBottom: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
                       }}
                       onClick={() => handleOpenBookmark(bookmark.url)}
                       title={bookmark.title}
                     >
-                      {bookmark.title}
+                      <span>{bookmark.title}</span>
+                      {bookmark.isParsing && (
+                        <span style={{
+                          fontSize: '10px',
+                          color: 'var(--vscode-descriptionForeground)',
+                          fontStyle: 'italic',
+                        }}>
+                          解析中...
+                        </span>
+                      )}
                     </div>
                     <div style={{ 
                       color: 'var(--vscode-descriptionForeground)',
@@ -223,8 +333,8 @@ export default function Bookmarks() {
                     <Button
                       type="text"
                       size="small"
-                      icon={<LinkOutlined />}
-                      onClick={() => handleOpenBookmark(bookmark.url)}
+                      icon={<CopyOutlined />}
+                      onClick={() => handleCopyUrl(bookmark.url)}
                       style={{
                         color: 'var(--vscode-foreground)',
                         padding: '0',
@@ -233,23 +343,54 @@ export default function Bookmarks() {
                         minWidth: '20px',
                         fontSize: '12px',
                       }}
-                      title="打开链接"
+                      title="复制链接"
                     />
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<DeleteOutlined />}
-                      onClick={() => handleDeleteBookmark(bookmark.id)}
-                      style={{
-                        color: 'var(--vscode-errorForeground)',
-                        padding: '0',
-                        width: '20px',
-                        height: '20px',
-                        minWidth: '20px',
-                        fontSize: '12px',
+                    {!bookmark.isParsing && (
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<ReloadOutlined />}
+                        onClick={() => handleReparseBookmark(bookmark)}
+                        style={{
+                          color: 'var(--vscode-foreground)',
+                          padding: '0',
+                          width: '20px',
+                          height: '20px',
+                          minWidth: '20px',
+                          fontSize: '12px',
+                        }}
+                        title="重新解析"
+                      />
+                    )}
+                    <Popconfirm
+                      placement="left"
+                      title="确定要删除这个书签吗？"
+                      
+                      onConfirm={() => handleDeleteBookmark(bookmark.id)}
+                      okText="确定"
+                      cancelText="取消"
+                      okButtonProps={{
+                        style: {
+                          backgroundColor: 'var(--vscode-button-background)',
+                          borderColor: 'var(--vscode-button-background)',
+                        }
                       }}
-                      title="删除书签"
-                    />
+                    >
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        style={{
+                          color: 'var(--vscode-errorForeground)',
+                          padding: '0',
+                          width: '20px',
+                          height: '20px',
+                          minWidth: '20px',
+                          fontSize: '12px',
+                        }}
+                        title="删除书签"
+                      />
+                    </Popconfirm>
                   </div>
                 </div>
               </List.Item>
@@ -326,7 +467,7 @@ export default function Bookmarks() {
               loading={loading}
               style={{ fontSize: '13px' }}
             >
-              {loading ? '创建书签中...' : '添加'}
+              {loading ? '添加中...' : '添加'}
             </Button>
           </div>
         </Form>

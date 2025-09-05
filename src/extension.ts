@@ -12,6 +12,212 @@ import {
   initializeConfig,
 } from './config';
 
+// 快速创建书签（使用默认信息）
+async function createBookmarkQuick(targetUrl: string): Promise<{success: boolean; error?: string; bookmark?: any}> {
+  try {
+    const parsedUrl = new URL(targetUrl);
+    const domain = parsedUrl.hostname.replace('www.', '');
+    const title = domain.split('.')[0];
+    const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+    
+    const quickBookmark = {
+      id: Date.now().toString(),
+      title: capitalizedTitle,
+      url: targetUrl,
+      icon: undefined, // 解析完成前不设置图标
+      addedAt: new Date().toISOString(),
+      isParsing: true, // 标记为解析中
+    };
+
+    // 加载当前配置
+    const config = await loadConfig();
+    
+    // 检查是否已存在相同URL的书签
+    const existingBookmark = (config.bookmarks || []).find((bookmark: any) => bookmark.url === targetUrl);
+    if (existingBookmark) {
+      return { success: false, error: '书签已存在' };
+    }
+
+    // 添加新书签
+    const updatedConfig = {
+      ...config,
+      bookmarks: [...(config.bookmarks || []), quickBookmark],
+    };
+
+    // 保存配置
+    await saveConfig(updatedConfig);
+
+    console.log('[Extension] Quick bookmark created:', quickBookmark);
+    return { success: true, bookmark: quickBookmark };
+
+  } catch (error: any) {
+    console.error('[Extension] Error creating quick bookmark:', error);
+    return { success: false, error: `创建书签失败: ${error.message}` };
+  }
+}
+
+// 重新解析书签信息
+async function reparseBookmarkInfo(bookmarkId: string, targetUrl: string, webview: vscode.Webview): Promise<void> {
+  try {
+    console.log('[Extension] Reparsing bookmark info for:', bookmarkId, targetUrl);
+    
+    // 先设置书签为解析中状态
+    const config = await loadConfig();
+    const updatedConfig = {
+      ...config,
+      bookmarks: (config.bookmarks || []).map((bookmark: any) => 
+        bookmark.id === bookmarkId 
+          ? { ...bookmark, isParsing: true }
+          : bookmark
+      ),
+    };
+    await saveConfig(updatedConfig);
+    
+    // 发送解析中状态更新
+    webview.postMessage({
+      type: 'bookmarkReparsing',
+      payload: { bookmarkId }
+    });
+    
+    // 开始重新解析
+    await parseBookmarkInfoInBackground(bookmarkId, targetUrl, webview);
+    
+  } catch (error) {
+    console.error('[Extension] Error reparsing bookmark:', error);
+    
+    // 解析失败时，移除解析中状态
+    const config = await loadConfig();
+    const updatedConfig = {
+      ...config,
+      bookmarks: (config.bookmarks || []).map((bookmark: any) => 
+        bookmark.id === bookmarkId 
+          ? { ...bookmark, isParsing: false }
+          : bookmark
+      ),
+    };
+    await saveConfig(updatedConfig);
+  }
+}
+
+// 后台解析书签信息
+async function parseBookmarkInfoInBackground(bookmarkId: string, targetUrl: string, webview: vscode.Webview): Promise<void> {
+  try {
+    console.log('[Extension] Parsing bookmark info in background for:', targetUrl);
+    
+    const response = await axios.get(targetUrl, {
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+    });
+
+    const htmlContent = response.data;
+    const parsedUrl = new URL(targetUrl);
+    
+    // 解析 title
+    const titleMatch = htmlContent.match(/<title[^>]*>([^<]*)<\/title>/i);
+    let title = titleMatch ? titleMatch[1].trim() : '';
+    
+    // 清理HTML实体
+    title = title
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'");
+    
+    // 如果title为空，尝试从h1标签获取
+    if (!title) {
+      const h1Match = htmlContent.match(/<h1[^>]*>([^<]*)<\/h1>/i);
+      title = h1Match ? h1Match[1].trim() : '';
+    }
+    
+    // 如果还是为空，使用域名
+    if (!title) {
+      title = parsedUrl.hostname.replace('www.', '');
+    }
+
+    // 解析 favicon
+    let icon: string | undefined;
+    
+    // 查找各种类型的图标
+    const iconPatterns = [
+      /<link[^>]*rel=["'](?:icon|shortcut icon|apple-touch-icon)[^>]*href=["']([^"']*)/i,
+      /<link[^>]*href=["']([^"']*)[^>]*rel=["'](?:icon|shortcut icon|apple-touch-icon)/i,
+      /<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']*)/i,
+    ];
+
+    for (const pattern of iconPatterns) {
+      const iconMatch = htmlContent.match(pattern);
+      if (iconMatch) {
+        let iconHref = iconMatch[1];
+        if (iconHref.startsWith('//')) {
+          iconHref = parsedUrl.protocol + iconHref;
+        } else if (iconHref.startsWith('/')) {
+          iconHref = `${parsedUrl.protocol}//${parsedUrl.hostname}${iconHref}`;
+        } else if (!iconHref.startsWith('http')) {
+          iconHref = `${parsedUrl.protocol}//${parsedUrl.hostname}/${iconHref}`;
+        }
+        icon = iconHref;
+        break;
+      }
+    }
+
+    // 如果没找到图标，尝试使用Google的favicon服务
+    if (!icon) {
+      icon = `https://www.google.com/s2/favicons?domain=${parsedUrl.hostname}&sz=16`;
+    }
+
+    // 更新书签信息
+    const config = await loadConfig();
+    const updatedConfig = {
+      ...config,
+      bookmarks: (config.bookmarks || []).map((bookmark: any) => 
+        bookmark.id === bookmarkId 
+          ? {
+              ...bookmark,
+              title,
+              icon,
+              isParsing: false, // 解析完成
+            }
+          : bookmark
+      ),
+    };
+
+    await saveConfig(updatedConfig);
+    console.log('[Extension] Bookmark info parsed and updated:', { bookmarkId, title, icon });
+    
+    // 发送书签更新消息
+    webview.postMessage({
+      type: 'bookmarkUpdated',
+      payload: { bookmarkId, title, icon }
+    });
+
+  } catch (error) {
+    console.error('[Extension] Error parsing bookmark info in background:', error);
+    
+    // 解析失败时，移除解析中状态
+    const config = await loadConfig();
+    const updatedConfig = {
+      ...config,
+      bookmarks: (config.bookmarks || []).map((bookmark: any) => 
+        bookmark.id === bookmarkId 
+          ? {
+              ...bookmark,
+              isParsing: false, // 解析失败，移除解析中状态
+            }
+          : bookmark
+      ),
+    };
+
+    await saveConfig(updatedConfig);
+  }
+}
+
 // 获取网页信息并直接创建书签的函数
 async function fetchWebsiteInfoAndCreateBookmark(targetUrl: string): Promise<{success: boolean; error?: string; bookmark?: any}> {
   try {
@@ -410,6 +616,72 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       return;
     }
     
+    if (kind === 'createBookmarkQuick') {
+      console.log('[Extension] creating bookmark quickly...');
+      const url = message.payload?.url;
+      if (!url) {
+        console.error('[Extension] No URL provided for createBookmarkQuick');
+        await webview.postMessage({
+          type: 'bookmarkCreated',
+          payload: { 
+            success: false,
+            error: '没有提供URL'
+          },
+        });
+        return;
+      }
+      
+      try {
+        console.log('[Extension] Creating quick bookmark for:', url);
+        const result = await createBookmarkQuick(url);
+        console.log('[Extension] Quick bookmark creation result:', result);
+        
+        await webview.postMessage({
+          type: 'bookmarkCreated',
+          payload: result,
+        });
+        
+        // 发送更新后的配置
+        const config = await loadConfig();
+        await webview.postMessage({
+          type: 'configLoaded',
+          payload: config,
+        });
+        
+        // 如果创建成功，启动后台解析
+        if (result.success && result.bookmark) {
+          console.log('[Extension] Starting background parsing for bookmark:', result.bookmark.id);
+          // 不等待解析完成，立即返回
+          parseBookmarkInfoInBackground(result.bookmark.id, url, webview).then(() => {
+            // 解析完成后发送更新
+            console.log('[Extension] Background parsing completed, sending config update');
+            loadConfig().then(config => {
+              console.log('[Extension] Sending configLoaded message with updated bookmarks:', config.bookmarks);
+              webview.postMessage({
+                type: 'configLoaded',
+                payload: config,
+              });
+            }).catch(error => {
+              console.error('[Extension] Error loading config after parsing:', error);
+            });
+          }).catch(error => {
+            console.error('[Extension] Error in background parsing:', error);
+          });
+        }
+        
+      } catch (error: any) {
+        console.error('[Extension] Error creating quick bookmark:', error);
+        await webview.postMessage({
+          type: 'bookmarkCreated',
+          payload: { 
+            success: false,
+            error: `创建书签失败: ${error.message}`
+          },
+        });
+      }
+      return;
+    }
+    
     if (kind === 'addBookmark') {
       console.log('[Extension] adding bookmark...');
       const url = message.payload?.url;
@@ -451,6 +723,26 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
             error: `创建书签失败: ${error.message}`
           },
         });
+      }
+      return;
+    }
+    
+    if (kind === 'reparseBookmark') {
+      console.log('[Extension] reparsing bookmark...');
+      const bookmarkId = message.payload?.bookmarkId;
+      const url = message.payload?.url;
+      
+      if (!bookmarkId || !url) {
+        console.error('[Extension] Missing bookmarkId or url for reparseBookmark');
+        return;
+      }
+      
+      try {
+        // 异步执行重新解析，不等待完成
+        reparseBookmarkInfo(bookmarkId, url, webview);
+        console.log('[Extension] Bookmark reparsing started for:', bookmarkId);
+      } catch (error) {
+        console.error('[Extension] Error starting bookmark reparsing:', error);
       }
       return;
     }

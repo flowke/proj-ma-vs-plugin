@@ -68,6 +68,7 @@ export interface BookmarkItem {
   icon?: string; // favicon URL
   addedAt: string; // ISO string
   tags?: string[];
+  isParsing?: boolean; // 是否正在解析中
 }
 
 export interface RepositoryItem {
@@ -85,7 +86,7 @@ export type VSCodeApi = { postMessage: (message: any) => void } | undefined;
 
 // 消息类型
 export interface VSCodeMessage {
-  type: 'webviewReady' | 'pickFolder' | 'openConfigLocation' | 'openConfigFile' | 'saveConfig' | 'loadConfig' | 'toggleFavorite' | 'refreshDirectory' | 'directoryRefreshed' | 'openTerminal' | 'openInEditor' | 'openUrl' | 'addBookmark' | 'bookmarkAdded';
+  type: 'webviewReady' | 'pickFolder' | 'openConfigLocation' | 'openConfigFile' | 'saveConfig' | 'loadConfig' | 'toggleFavorite' | 'refreshDirectory' | 'directoryRefreshed' | 'openTerminal' | 'openInEditor' | 'openUrl' | 'addBookmark' | 'bookmarkAdded' | 'createBookmarkQuick' | 'bookmarkCreated' | 'parseBookmarkInfo' | 'bookmarkInfoParsed' | 'bookmarkUpdated' | 'reparseBookmark' | 'bookmarkReparsing';
   payload?: any;
 }
 
