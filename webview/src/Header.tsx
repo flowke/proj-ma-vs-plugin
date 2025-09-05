@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button } from 'antd';
 import { HomeOutlined, BookOutlined, CodeOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router';
@@ -17,6 +17,8 @@ interface HeaderProps {
   onRepoAdd?: () => void;
   onFolderAdd?: () => void;
 }
+
+const LAST_TAB_KEY = 'proj-ma-last-tab';
 
 export default function Header({ onBookmarkAdd, onRepoAdd, onFolderAdd }: HeaderProps) {
   const navigate = useNavigate();
@@ -47,6 +49,14 @@ export default function Header({ onBookmarkAdd, onRepoAdd, onFolderAdd }: Header
       onAdd: onRepoAdd,
     },
   ];
+
+  // 监听路由变化，保存当前 tab 到 localStorage
+  useEffect(() => {
+    const currentTab = tabs.find(tab => tab.path === location.pathname);
+    if (currentTab) {
+      localStorage.setItem(LAST_TAB_KEY, currentTab.key);
+    }
+  }, [location.pathname]);
 
   const handleTabClick = (path: string) => {
     navigate(path);
@@ -90,7 +100,7 @@ export default function Header({ onBookmarkAdd, onRepoAdd, onFolderAdd }: Header
                 backgroundColor: isActive 
                   ? 'var(--vscode-list-activeSelectionBackground)' 
                   : 'transparent',
- 
+  
                 borderRadius: '4px',
                 fontSize: '12px',
               }}

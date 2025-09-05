@@ -1,11 +1,18 @@
 import React from 'react';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, message } from 'antd';
 
 interface AppProps {
   children: React.ReactNode;
 }
 
 export default function App({ children }: AppProps) {
+  // 配置全局 message 的 maxCount
+  React.useEffect(() => {
+    message.config({
+      maxCount: 1,
+    });
+  }, []);
+
   return (
     <>
       {/* 全局样式覆盖，确保 VS Code 主题生效 */}
