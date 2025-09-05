@@ -1,0 +1,131 @@
+// 实用混入集合
+
+// 卡片样式混入
+@mixin card-style($padding: $spacing-lg) {
+  background-color: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: $border-radius-large;
+  padding: $padding;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+// 按钮变体混入
+@mixin button-variant($bg-color, $text-color, $border-color: $bg-color) {
+  background-color: $bg-color;
+  color: $text-color;
+  border-color: $border-color;
+  
+  &:hover {
+    background-color: lighten($bg-color, 5%);
+    border-color: lighten($border-color, 5%);
+  }
+  
+  &:active {
+    background-color: darken($bg-color, 5%);
+    border-color: darken($border-color, 5%);
+  }
+}
+
+// 列表项样式混入
+@mixin list-item {
+  padding: $spacing-sm $spacing-md;
+  border-radius: $border-radius;
+  transition: background-color $transition-normal;
+  
+  &:hover {
+    background-color: var(--vscode-list-hoverBackground);
+  }
+  
+  &:active,
+  &.active {
+    background-color: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+  }
+}
+
+// 输入框样式混入
+@mixin input-style {
+  background-color: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  color: var(--vscode-input-foreground);
+  padding: $spacing-sm $spacing-md;
+  border-radius: $border-radius;
+  
+  &:focus {
+    @include focus-ring;
+    border-color: var(--vscode-focusBorder);
+  }
+  
+  &::placeholder {
+    color: var(--vscode-input-placeholderForeground);
+  }
+}
+
+// 图标按钮混入
+@mixin icon-button($size: 20px) {
+  width: $size;
+  height: $size;
+  min-width: $size;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  border-radius: $border-radius-small;
+  transition: all $transition-normal;
+  
+  &:hover {
+    background-color: var(--vscode-toolbar-hoverBackground);
+  }
+  
+  &:active {
+    background-color: var(--vscode-toolbar-activeBackground);
+  }
+}
+
+// 加载动画混入
+@mixin loading-spin {
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  
+  animation: spin 1s linear infinite;
+}
+
+// 淡入动画混入
+@mixin fade-in($duration: $transition-normal) {
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  animation: fadeIn $duration ease-in-out;
+}
+
+// 阴影变体混入
+@mixin shadow($level: 1) {
+  @if $level == 1 {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  } @else if $level == 2 {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  } @else if $level == 3 {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+}
+
+// 可访问性隐藏内容混入
+@mixin sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}

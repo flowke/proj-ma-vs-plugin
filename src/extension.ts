@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { getWebviewHtml } from './webviewHtml';
 import * as path from 'path';
+import axios from 'axios';
+import { spawn } from 'child_process';
 import {
   ProjectConfig,
   getConfigFilePath,
@@ -9,6 +11,151 @@ import {
   saveConfig,
   initializeConfig,
 } from './config';
+
+// 获取网页信息并直接创建书签的函数
+async function fetchWebsiteInfoAndCreateBookmark(targetUrl: string): Promise<{success: boolean; error?: string; bookmark?: any}> {
+  try {
+    console.log('[Extension] Fetching website info for:', targetUrl);
+    
+    // 使用 axios 获取网页内容
+    const response = await axios.get(targetUrl, {
+      timeout: 10000, // 10秒超时
+
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+    });
+
+    const htmlContent = response.data;
+    const parsedUrl = new URL(targetUrl);
+    
+    // 解析 title
+    const titleMatch = htmlContent.match(/<title[^>]*>([^<]*)<\/title>/i);
+    let title = titleMatch ? titleMatch[1].trim() : '';
+    
+    // 清理HTML实体
+    title = title
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'");
+    
+    // 如果title为空，尝试从h1标签获取
+    if (!title) {
+      const h1Match = htmlContent.match(/<h1[^>]*>([^<]*)<\/h1>/i);
+      title = h1Match ? h1Match[1].trim() : '';
+    }
+    
+    // 如果还是为空，使用域名
+    if (!title) {
+      title = parsedUrl.hostname.replace('www.', '');
+    }
+
+    // 解析 favicon
+    let icon: string | undefined;
+    
+    // 查找各种类型的图标
+    const iconPatterns = [
+      /<link[^>]*rel=["'](?:icon|shortcut icon|apple-touch-icon)[^>]*href=["']([^"']*)/i,
+      /<link[^>]*href=["']([^"']*)[^>]*rel=["'](?:icon|shortcut icon|apple-touch-icon)/i,
+      /<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']*)/i,
+    ];
+
+    for (const pattern of iconPatterns) {
+      const iconMatch = htmlContent.match(pattern);
+      if (iconMatch) {
+        let iconHref = iconMatch[1];
+        if (iconHref.startsWith('//')) {
+          iconHref = parsedUrl.protocol + iconHref;
+        } else if (iconHref.startsWith('/')) {
+          iconHref = `${parsedUrl.protocol}//${parsedUrl.hostname}${iconHref}`;
+        } else if (!iconHref.startsWith('http')) {
+          iconHref = `${parsedUrl.protocol}//${parsedUrl.hostname}/${iconHref}`;
+        }
+        icon = iconHref;
+        break;
+      }
+    }
+
+    // 如果没找到图标，使用默认的favicon路径
+    if (!icon) {
+      icon = `${parsedUrl.protocol}//${parsedUrl.hostname}/favicon.ico`;
+    }
+
+    // 创建书签对象
+    const newBookmark = {
+      id: Date.now().toString(),
+      title,
+      url: targetUrl,
+      icon,
+      addedAt: new Date().toISOString(),
+    };
+
+    // 加载当前配置
+    const config = await loadConfig();
+    
+    // 检查是否已存在相同URL的书签
+    const existingBookmark = (config.bookmarks || []).find((bookmark: any) => bookmark.url === targetUrl);
+    if (existingBookmark) {
+      return { success: false, error: '书签已存在' };
+    }
+
+    // 添加新书签
+    const updatedConfig = {
+      ...config,
+      bookmarks: [...(config.bookmarks || []), newBookmark],
+    };
+
+    // 保存配置
+    await saveConfig(updatedConfig);
+
+    console.log('[Extension] Bookmark created successfully:', newBookmark);
+    return { success: true, bookmark: newBookmark };
+
+  } catch (error: any) {
+    console.error('[Extension] Error fetching website info:', error);
+    
+    // 生成默认书签
+    try {
+      const parsedUrl = new URL(targetUrl);
+      const domain = parsedUrl.hostname.replace('www.', '');
+      const title = domain.split('.')[0];
+      const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+      
+      const defaultBookmark = {
+        id: Date.now().toString(),
+        title: capitalizedTitle,
+        url: targetUrl,
+        icon: `${parsedUrl.protocol}//${parsedUrl.hostname}/favicon.ico`,
+        addedAt: new Date().toISOString(),
+      };
+
+      // 加载当前配置并添加默认书签
+      const config = await loadConfig();
+      const existingBookmark = (config.bookmarks || []).find((bookmark: any) => bookmark.url === targetUrl);
+      if (existingBookmark) {
+        return { success: false, error: '书签已存在' };
+      }
+
+      const updatedConfig = {
+        ...config,
+        bookmarks: [...(config.bookmarks || []), defaultBookmark],
+      };
+
+      await saveConfig(updatedConfig);
+      console.log('[Extension] Default bookmark created:', defaultBookmark);
+      return { success: true, bookmark: defaultBookmark, error: `获取网页信息失败，已使用默认信息: ${error.message}` };
+      
+    } catch (parseError) {
+      return { success: false, error: `无法创建书签: ${error.message}` };
+    }
+  }
+}
 
 function setupWebviewMessaging(webview: vscode.Webview, context: vscode.ExtensionContext) {
   const disposable = webview.onDidReceiveMessage(async (message) => {
@@ -186,6 +333,143 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       } catch (error) {
         console.error('[Extension] Error opening terminal:', error);
         vscode.window.showErrorMessage(`打开终端失败: ${error}`);
+      }
+      return;
+    }
+    
+    if (kind === 'openInEditor') {
+      console.log('[Extension] opening in editor...');
+      const directoryUri = message.payload?.uri;
+      const editor = message.payload?.editor;
+      
+      if (!directoryUri) {
+        console.error('[Extension] No directory URI provided for editor');
+        return;
+      }
+      
+      if (!editor || (editor !== 'vscode' && editor !== 'cursor')) {
+        console.error('[Extension] Invalid editor specified:', editor);
+        vscode.window.showErrorMessage(`无效的编辑器: ${editor}`);
+        return;
+      }
+      
+      try {
+        const folderUri = vscode.Uri.parse(directoryUri);
+        console.log('[Extension] opening in editor:', editor, 'at:', folderUri.fsPath);
+        
+        // 检查目录是否存在
+        try {
+          await vscode.workspace.fs.stat(folderUri);
+        } catch (statError) {
+          console.warn('[Extension] Directory no longer exists:', folderUri.fsPath);
+          vscode.window.showWarningMessage(`目录不存在: ${folderUri.fsPath}`);
+          return;
+        }
+        
+        // 构建命令
+        let command: string;
+        let args: string[];
+        
+        if (editor === 'vscode') {
+          command = 'code';
+          args = [folderUri.fsPath];
+        } else if (editor === 'cursor') {
+          command = 'cursor';
+          args = [folderUri.fsPath];
+        } else {
+          throw new Error(`Unsupported editor: ${editor}`);
+        }
+        
+        console.log('[Extension] Executing command:', command, args);
+        
+        // 使用 spawn 在后台静默执行命令
+        const childProcess = spawn(command, args, {
+          stdio: 'ignore', // 忽略标准输入输出，不显示任何输出
+          detached: false, // 不分离进程
+          shell: false, // 不使用shell，直接执行命令
+        });
+        
+        childProcess.on('error', (error) => {
+          console.error('[Extension] Process error:', error);
+          throw error;
+        });
+        
+        childProcess.on('exit', (code) => {
+          console.log('[Extension] Process exited with code:', code);
+          if (code === 0) {
+            console.log('[Extension] Successfully opened in editor:', editor);
+            vscode.window.showInformationMessage(`已在 ${editor === 'vscode' ? 'VS Code' : 'Cursor'} 中打开: ${path.basename(folderUri.fsPath)}`);
+          } else {
+            throw new Error(`编辑器进程退出，错误代码: ${code}`);
+          }
+        });
+      } catch (error) {
+        console.error('[Extension] Error opening in editor:', error);
+        vscode.window.showErrorMessage(`在 ${editor === 'vscode' ? 'VS Code' : 'Cursor'} 中打开失败: ${error}`);
+      }
+      return;
+    }
+    
+    if (kind === 'addBookmark') {
+      console.log('[Extension] adding bookmark...');
+      const url = message.payload?.url;
+      if (!url) {
+        console.error('[Extension] No URL provided for addBookmark');
+        await webview.postMessage({
+          type: 'bookmarkAdded',
+          payload: { 
+            success: false,
+            error: '没有提供URL'
+          },
+        });
+        return;
+      }
+      
+      try {
+        console.log('[Extension] Creating bookmark for:', url);
+        const result = await fetchWebsiteInfoAndCreateBookmark(url);
+        console.log('[Extension] Bookmark creation result:', result);
+        
+        await webview.postMessage({
+          type: 'bookmarkAdded',
+          payload: result,
+        });
+        
+        // 发送更新后的配置
+        const config = await loadConfig();
+        await webview.postMessage({
+          type: 'configLoaded',
+          payload: config,
+        });
+        
+      } catch (error: any) {
+        console.error('[Extension] Error creating bookmark:', error);
+        await webview.postMessage({
+          type: 'bookmarkAdded',
+          payload: { 
+            success: false,
+            error: `创建书签失败: ${error.message}`
+          },
+        });
+      }
+      return;
+    }
+    
+    if (kind === 'openUrl') {
+      console.log('[Extension] opening URL...');
+      const url = message.payload?.url;
+      if (!url) {
+        console.error('[Extension] No URL provided');
+        vscode.window.showErrorMessage('没有提供URL');
+        return;
+      }
+      
+      try {
+        await vscode.env.openExternal(vscode.Uri.parse(url));
+        console.log('[Extension] Successfully opened URL:', url);
+      } catch (error) {
+        console.error('[Extension] Error opening URL:', error);
+        vscode.window.showErrorMessage(`打开链接失败: ${error}`);
       }
       return;
     }

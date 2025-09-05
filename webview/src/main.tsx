@@ -5,6 +5,7 @@ import App from './App';
 import { router } from './router';
 import { initializeVSCodeApi } from './vscode-api';
 import 'antd/dist/reset.css';
+import './index.scss';
 
 // 初始化 VS Code API
 initializeVSCodeApi();

@@ -1,0 +1,90 @@
+// SCSS变量文件 - 存放全局变量和混入
+
+// 颜色变量
+$primary-color: var(--vscode-button-background);
+$secondary-color: var(--vscode-button-secondaryBackground);
+$error-color: var(--vscode-errorForeground);
+$warning-color: var(--vscode-editorWarning-foreground);
+$success-color: var(--vscode-gitDecoration-addedResourceForeground);
+
+// 尺寸变量
+$border-radius: 4px;
+$border-radius-small: 2px;
+$border-radius-large: 6px;
+
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 12px;
+$spacing-lg: 16px;
+$spacing-xl: 24px;
+
+// 字体大小
+$font-size-xs: 11px;
+$font-size-sm: 12px;
+$font-size-md: 13px;
+$font-size-lg: 14px;
+$font-size-xl: 16px;
+
+// 过渡动画
+$transition-fast: 0.15s ease;
+$transition-normal: 0.2s ease;
+$transition-slow: 0.3s ease;
+
+// 混入（Mixins）
+@mixin button-base {
+  border: 1px solid var(--vscode-button-border);
+  border-radius: $border-radius;
+  cursor: pointer;
+  transition: all $transition-normal;
+  
+  &:hover {
+    opacity: 0.9;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin focus-ring {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+// 响应式断点混入
+@mixin mobile-only {
+  @media (max-width: 767px) {
+    @content;
+  }
+}
+
+@mixin tablet-up {
+  @media (min-width: 768px) {
+    @content;
+  }
+}
+
+@mixin desktop-up {
+  @media (min-width: 1024px) {
+    @content;
+  }
+}

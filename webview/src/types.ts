@@ -12,10 +12,18 @@ export interface ProjectConfig {
   // 通过+号新增的目录
   addedDirectories: AddedDirectory[];
   
+  // 网页书签
+  bookmarks: BookmarkItem[];
+  
+  // 代码仓库
+  repositories: RepositoryItem[];
+  
   // 设置项
   settings: {
     // 最近打开列表的最大长度
     maxRecentItems: number;
+    // 默认编辑器设置
+    defaultEditor?: 'vscode' | 'cursor';
     // 其他设置可以在这里扩展
     [key: string]: any;
   };
@@ -53,12 +61,31 @@ export interface Subfolder {
   isFavorite?: boolean;
 }
 
+export interface BookmarkItem {
+  id: string;
+  title: string;
+  url: string;
+  icon?: string; // favicon URL
+  addedAt: string; // ISO string
+  tags?: string[];
+}
+
+export interface RepositoryItem {
+  id: string;
+  name: string;
+  url: string;
+  provider?: 'github' | 'gitlab' | 'bitbucket' | 'other';
+  description?: string;
+  addedAt: string; // ISO string
+  tags?: string[];
+}
+
 // VS Code API 类型
 export type VSCodeApi = { postMessage: (message: any) => void } | undefined;
 
 // 消息类型
 export interface VSCodeMessage {
-  type: 'webviewReady' | 'pickFolder' | 'openConfigLocation' | 'openConfigFile' | 'saveConfig' | 'loadConfig' | 'toggleFavorite' | 'refreshDirectory' | 'directoryRefreshed' | 'openTerminal';
+  type: 'webviewReady' | 'pickFolder' | 'openConfigLocation' | 'openConfigFile' | 'saveConfig' | 'loadConfig' | 'toggleFavorite' | 'refreshDirectory' | 'directoryRefreshed' | 'openTerminal' | 'openInEditor' | 'openUrl' | 'addBookmark' | 'bookmarkAdded';
   payload?: any;
 }
 
@@ -68,6 +95,8 @@ export const DEFAULT_CONFIG: ProjectConfig = {
   favorites: [],
   recentlyOpened: [],
   addedDirectories: [],
+  bookmarks: [],
+  repositories: [],
   settings: {
     maxRecentItems: 20,
   },

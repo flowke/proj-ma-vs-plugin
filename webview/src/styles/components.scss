@@ -1,0 +1,244 @@
+// 组件样式示例 - 展示SCSS在组件中的应用
+
+// 项目条目样式
+.project-item {
+  @include list-item;
+  
+  &__container {
+    @include flex-between;
+    width: 100%;
+    gap: $spacing-sm;
+  }
+  
+  &__name {
+    @include text-ellipsis;
+    cursor: pointer;
+    color: var(--vscode-foreground);
+    transition: color $transition-normal;
+    
+    &:hover {
+      color: var(--vscode-textLink-foreground);
+    }
+  }
+  
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: $spacing-xs;
+  }
+  
+  &__star-btn {
+    @include icon-button;
+    
+    &--active {
+      color: #ffd700;
+    }
+  }
+  
+  &__folder-btn {
+    @include icon-button;
+    margin-left: $spacing-xs;
+  }
+}
+
+// 收藏区域样式
+.favorites-section {
+  .ant-collapse-header {
+    padding: $spacing-sm $spacing-xs !important;
+  }
+  
+  .ant-collapse-content-box {
+    padding-top: $spacing-xs !important;
+  }
+}
+
+// 条目组样式
+.directory-group {
+  margin: $spacing-xs 0;
+  
+  &__header {
+    @include flex-between;
+    width: 100%;
+    
+    .ant-collapse-header {
+      padding-right: $spacing-xs !important;
+      padding: $spacing-sm $spacing-xs !important;
+    }
+  }
+  
+  &__title {
+    @include flex-center;
+    gap: $spacing-xs;
+    
+    span {
+      color: var(--vscode-foreground);
+      @include flex-center;
+      line-height: 20px;
+      height: 20px;
+    }
+  }
+  
+  &__actions {
+    @include flex-center;
+    gap: $spacing-xs;
+  }
+  
+  &__terminal-btn,
+  &__refresh-btn {
+    @include icon-button;
+    font-size: $font-size-sm;
+    
+    &:hover {
+      background-color: var(--vscode-toolbar-hoverBackground);
+    }
+  }
+  
+  &__drag-handle {
+    @include icon-button;
+    cursor: grab;
+    opacity: 0.7;
+    transition: opacity $transition-normal, filter $transition-normal;
+    
+    &:hover {
+      opacity: 1;
+    }
+    
+    &:active,
+    &--dragging {
+      cursor: grabbing;
+      filter: brightness(1.2);
+    }
+  }
+  
+  // 拖拽状态
+  &--being-dragged {
+    opacity: 0.5 !important;
+    
+    .ant-collapse-content,
+    .ant-collapse-header {
+      opacity: 0.5 !important;
+    }
+  }
+  
+  &--drop-target {
+    background-color: var(--vscode-list-hoverBackground) !important;
+    border: 2px dashed var(--vscode-focusBorder) !important;
+    border-radius: $border-radius-large !important;
+    transition: none !important;
+    
+    .ant-collapse-content,
+    .ant-collapse-header {
+      background-color: var(--vscode-list-hoverBackground) !important;
+    }
+  }
+}
+
+// 编辑器选择模态框样式
+.editor-modal {
+  .ant-modal-content {
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
+    padding: $spacing-lg;
+  }
+  
+  .ant-modal-header {
+    background-color: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    padding: $spacing-md $spacing-lg;
+  }
+  
+  .ant-modal-body {
+    padding: $spacing-sm 0;
+  }
+  
+  .ant-modal-mask {
+    background-color: rgba(0, 0, 0, 0.6);
+  }
+  
+  &__content {
+    padding: 0;
+  }
+  
+  &__description {
+    color: var(--vscode-foreground);
+    margin-bottom: $spacing-md;
+    font-size: $font-size-sm;
+    line-height: 1.4;
+  }
+  
+  &__buttons {
+    display: flex;
+    gap: $spacing-sm;
+    flex-direction: column;
+  }
+  
+  &__button {
+    @include button-base;
+    background-color: var(--vscode-button-background);
+    border-color: var(--vscode-button-border);
+    color: var(--vscode-button-foreground);
+    height: 32px;
+    font-size: $font-size-sm;
+    
+    &:hover {
+      background-color: var(--vscode-button-hoverBackground);
+    }
+  }
+  
+  &__note {
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+    margin-top: $spacing-md;
+    margin-bottom: 0;
+    line-height: 1.3;
+  }
+  
+  &__close-icon {
+    color: var(--vscode-foreground);
+    font-size: $font-size-lg;
+  }
+}
+
+// 设置页面样式增强
+.settings-page {
+  padding: $spacing-lg;
+  height: 100vh;
+  
+  &__back-button {
+    @include button-base;
+    color: var(--vscode-foreground);
+    padding: $spacing-xs $spacing-sm;
+    margin-bottom: $spacing-lg;
+  }
+  
+  &__title {
+    color: var(--vscode-foreground);
+    margin-bottom: $spacing-xl;
+    font-size: 18px;
+  }
+  
+  &__card {
+    @include card-style;
+    margin-top: $spacing-lg;
+    
+    &:first-of-type {
+      margin-top: 0;
+    }
+  }
+  
+  &__section-title {
+    color: var(--vscode-foreground);
+    margin-bottom: $spacing-lg;
+    font-size: $font-size-xl;
+    
+    .anticon {
+      margin-right: $spacing-sm;
+    }
+  }
+  
+  &__description {
+    color: var(--vscode-descriptionForeground);
+    display: block;
+    margin-bottom: $spacing-lg;
+  }
+}

@@ -1,0 +1,106 @@
+// 导入SCSS变量和混入
+@import './styles/variables';
+@import './styles/mixins';
+@import './styles/components';
+
+// 基础变量定义
+$base-padding: 0;
+
+// 基础样式
+body {
+  padding: $base-padding;
+  margin: 0;
+  background-color: var(--vscode-sideBar-background);
+  color: var(--vscode-foreground);
+  
+  // 默认字体设置
+  font-family: var(--vscode-font-family, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif);
+  font-size: var(--vscode-font-size, $font-size-md);
+  line-height: 1.4;
+  
+  // 平滑滚动
+  scroll-behavior: smooth;
+}
+
+// 全局过渡动画
+* {
+  transition: background-color $transition-normal,
+              color $transition-normal,
+              border-color $transition-normal;
+}
+
+// 自定义滚动条样式（适配VS Code主题）
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--vscode-scrollbarSlider-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
+  border-radius: 5px;
+  
+  &:hover {
+    background: var(--vscode-scrollbarSlider-activeBackground);
+  }
+}
+
+// 工具类
+.flex-center {
+  @include flex-center;
+}
+
+.flex-between {
+  @include flex-between;
+}
+
+.text-truncate {
+  @include text-ellipsis;
+}
+
+.card {
+  @include card-style;
+}
+
+.icon-btn {
+  @include icon-button;
+}
+
+.list-item {
+  @include list-item;
+}
+
+// 间距工具类
+.p-xs { padding: $spacing-xs; }
+.p-sm { padding: $spacing-sm; }
+.p-md { padding: $spacing-md; }
+.p-lg { padding: $spacing-lg; }
+.p-xl { padding: $spacing-xl; }
+
+.m-xs { margin: $spacing-xs; }
+.m-sm { margin: $spacing-sm; }
+.m-md { margin: $spacing-md; }
+.m-lg { margin: $spacing-lg; }
+.m-xl { margin: $spacing-xl; }
+
+// 字体大小工具类
+.text-xs { font-size: $font-size-xs; }
+.text-sm { font-size: $font-size-sm; }
+.text-md { font-size: $font-size-md; }
+.text-lg { font-size: $font-size-lg; }
+.text-xl { font-size: $font-size-xl; }
+
+// 调试模式样式（仅在开发环境中显示）
+.debug {
+  border: 1px dashed var(--vscode-errorForeground);
+  background-color: var(--vscode-errorBackground);
+  
+  &::before {
+    content: '🐛 DEBUG';
+    font-size: 10px;
+    color: var(--vscode-errorForeground);
+  }
+}

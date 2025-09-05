@@ -9,6 +9,8 @@ export interface ProjectConfig {
   favorites: any[];
   recentlyOpened: any[];
   addedDirectories: any[];
+  bookmarks: any[];
+  repositories: any[];
   settings: {
     maxRecentItems: number;
     [key: string]: any;
@@ -20,6 +22,8 @@ export const DEFAULT_CONFIG: ProjectConfig = {
   favorites: [],
   recentlyOpened: [],
   addedDirectories: [],
+  bookmarks: [],
+  repositories: [],
   settings: {
     maxRecentItems: 20,
   },
@@ -37,8 +41,25 @@ export async function loadConfig(): Promise<ProjectConfig> {
     if (fs.existsSync(configPath)) {
       const content = fs.readFileSync(configPath, 'utf8');
       const config = JSON.parse(content);
-      // 合并默认配置，确保新添加的字段有默认值
-      return { ...DEFAULT_CONFIG, ...config };
+      
+      // 深度合并配置，确保新添加的字段有默认值
+      const mergedConfig: ProjectConfig = {
+        ...DEFAULT_CONFIG,
+        ...config,
+        settings: {
+          ...DEFAULT_CONFIG.settings,
+          ...(config.settings || {}),
+        },
+        // 确保数组字段总是存在
+        favorites: config.favorites || DEFAULT_CONFIG.favorites,
+        recentlyOpened: config.recentlyOpened || DEFAULT_CONFIG.recentlyOpened,
+        addedDirectories: config.addedDirectories || DEFAULT_CONFIG.addedDirectories,
+        bookmarks: config.bookmarks || DEFAULT_CONFIG.bookmarks,
+        repositories: config.repositories || DEFAULT_CONFIG.repositories,
+      };
+      
+      console.log('[Config] Config loaded and merged with defaults');
+      return mergedConfig;
     } else {
       // 如果配置文件不存在，创建默认配置文件
       console.log('[Config] Config file not found, creating default config...');
@@ -112,6 +133,8 @@ export function validateConfig(config: any): config is ProjectConfig {
     Array.isArray(config.favorites) &&
     Array.isArray(config.recentlyOpened) &&
     Array.isArray(config.addedDirectories) &&
+    Array.isArray(config.bookmarks || []) &&
+    Array.isArray(config.repositories || []) &&
     typeof config.settings === 'object' &&
     config.settings !== null
   );

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Collapse, Layout, List } from 'antd';
-import { PlusOutlined, SettingOutlined, StarOutlined, StarFilled, ReloadOutlined, BarsOutlined, CodeOutlined } from '@ant-design/icons';
+import { Button, Collapse, Layout, List, Modal } from 'antd';
+import { StarOutlined, StarFilled, ReloadOutlined, BarsOutlined, CodeOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router';
 import type { AddedDirectory, ProjectConfig } from './types';
 import { DEFAULT_CONFIG } from './types';
 import { postMessage, isVSCodeApiAvailable } from './vscode-api';
+import Header from './Header';
 
 const { Content } = Layout;
 
@@ -12,6 +13,8 @@ export default function Home() {
   const [config, setConfig] = useState<ProjectConfig>(DEFAULT_CONFIG);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [showEditorModal, setShowEditorModal] = useState(false);
+  const [pendingEditorAction, setPendingEditorAction] = useState<{ folderUri: string; folderName: string } | null>(null);
   const navigate = useNavigate();
 
 
@@ -122,8 +125,12 @@ export default function Home() {
     postMessage({ type: 'pickFolder' });
   };
 
-  const handleSettings = () => {
-    navigate('/settings');
+  const handleBookmarkAdd = () => {
+    navigate('/bookmarks');
+  };
+
+  const handleRepoAdd = () => {
+    navigate('/repos');
   };
 
   const handleToggleFavorite = (directoryId: string, subfolderUri: string) => {
@@ -189,6 +196,66 @@ export default function Home() {
     }
     console.log('[Webview] postMessage: openTerminal');
     postMessage({ type: 'openTerminal', payload: { uri: directoryUri } });
+  };
+
+  const handleOpenInEditor = (folderUri: string, folderName: string) => {
+    console.log('[Webview] handleOpenInEditor clicked for:', folderUri);
+    if (!isVSCodeApiAvailable()) {
+      console.warn('VS Code API 不可用');
+      alert('VS Code API 不可用，请确保在 VS Code 扩展环境中运行');
+      return;
+    }
+
+    // 检查是否已设置默认编辑器
+    if (config.settings.defaultEditor) {
+      // 直接使用已设置的编辑器
+      console.log('[Webview] postMessage: openInEditor with', config.settings.defaultEditor);
+      postMessage({ 
+        type: 'openInEditor', 
+        payload: { 
+          uri: folderUri, 
+          editor: config.settings.defaultEditor 
+        } 
+      });
+    } else {
+      // 显示编辑器选择模态框
+      setPendingEditorAction({ folderUri, folderName });
+      setShowEditorModal(true);
+    }
+  };
+
+  const handleEditorSelection = (editor: 'vscode' | 'cursor') => {
+    if (!pendingEditorAction) return;
+
+    // 更新配置中的默认编辑器
+    const updated = {
+      ...config,
+      settings: {
+        ...config.settings,
+        defaultEditor: editor,
+      },
+    };
+    setConfig(updated);
+    postMessage({ type: 'saveConfig', payload: updated });
+
+    // 执行打开操作
+    console.log('[Webview] postMessage: openInEditor with', editor);
+    postMessage({ 
+      type: 'openInEditor', 
+      payload: { 
+        uri: pendingEditorAction.folderUri, 
+        editor: editor 
+      } 
+    });
+
+    // 清理状态
+    setShowEditorModal(false);
+    setPendingEditorAction(null);
+  };
+
+  const handleCancelEditorSelection = () => {
+    setShowEditorModal(false);
+    setPendingEditorAction(null);
   };
 
   // 拖拽处理函数
@@ -277,7 +344,7 @@ export default function Home() {
 
 
   return (
-    <Layout style={{ minHeight: '100vh', backgroundColor: 'var(--vscode-panel-background)' }}>
+    <Layout style={{ minHeight: '100vh', backgroundColor: 'var(--vscode-sideBar-background)' }}>
       <style>{`
         @keyframes pulse {
           0% { opacity: 0.6; }
@@ -317,46 +384,7 @@ export default function Home() {
           padding: 8px 4px !important;
         }
       `}</style>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '2px 4px', gap: '4px' }}>
-        <Button 
-          type="text" 
-          size="small"
-          icon={<PlusOutlined />} 
-          onClick={handleAdd}
-          style={{
-            width: '20px',
-            height: '20px',
-            minWidth: '20px',
-            padding: '0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--vscode-foreground)',
-            backgroundColor: 'transparent',
-            border: 'none',
-            fontSize: '12px',
-          }}
-        />
-        <Button 
-          type="text" 
-          size="small"
-          icon={<SettingOutlined />} 
-          onClick={handleSettings}
-          style={{
-            width: '20px',
-            height: '20px',
-            minWidth: '20px',
-            padding: '0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--vscode-foreground)',
-            backgroundColor: 'transparent',
-            border: 'none',
-            fontSize: '12px',
-          }}
-        />
-      </div>
+      <Header onBookmarkAdd={handleBookmarkAdd} onRepoAdd={handleRepoAdd} onFolderAdd={handleAdd} />
       <Content style={{ padding: '4px 0' }}>
         <div className="drag-container">
           {/* 收藏区域 */}
@@ -381,7 +409,7 @@ export default function Home() {
                     dataSource={favoriteSubfolders}
                     renderItem={(item) => (
                       <List.Item style={{ border: 'none', padding: '2px 0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
                           <Button
                             type="text"
                             size="small"
@@ -400,9 +428,35 @@ export default function Home() {
                             }}
                             title="取消收藏"
                           />
-                          <span style={{ color: 'var(--vscode-foreground)' }}>
+                          <span 
+                            style={{ 
+                              color: 'var(--vscode-foreground)',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => handleOpenInEditor(item.uri, item.name)}
+                            title="在编辑器中打开"
+                          >
                             {item.name}
                           </span>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<FolderOpenOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenInEditor(item.uri, item.name);
+                            }}
+                            style={{
+                              color: 'var(--vscode-foreground)',
+                              padding: '0',
+                              width: '20px',
+                              height: '20px',
+                              minWidth: '20px',
+                              fontSize: '12px',
+                              marginLeft: '4px',
+                            }}
+                            title="在编辑器中打开"
+                          />
                         </div>
                       </List.Item>
                     )}
@@ -552,7 +606,7 @@ export default function Home() {
                     dataSource={f.subfolders}
                     renderItem={(sf) => (
                       <List.Item style={{ border: 'none', padding: '2px 0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
                           <Button
                             type="text"
                             size="small"
@@ -570,7 +624,35 @@ export default function Home() {
                               fontSize: '14px',
                             }}
                           />
-                          <span style={{ color: 'var(--vscode-foreground)' }}>{sf.name}</span>
+                          <span 
+                            style={{ 
+                              color: 'var(--vscode-foreground)', 
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => handleOpenInEditor(sf.uri, sf.name)}
+                            title="在编辑器中打开"
+                          >
+                            {sf.name}
+                          </span>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<FolderOpenOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenInEditor(sf.uri, sf.name);
+                            }}
+                            style={{
+                              color: 'var(--vscode-foreground)',
+                              padding: '0',
+                              width: '20px',
+                              height: '20px',
+                              minWidth: '20px',
+                              fontSize: '12px',
+                              marginLeft: '4px',
+                            }}
+                            title="在编辑器中打开"
+                          />
                         </div>
                       </List.Item>
                     )}
@@ -582,6 +664,96 @@ export default function Home() {
           ))}
         </div>
       </Content>
+
+      {/* 编辑器选择模态框 */}
+      <Modal
+        title="选择编辑器"
+        open={showEditorModal}
+        onCancel={handleCancelEditorSelection}
+        footer={null}
+        centered
+        width={300}
+        style={{
+          '--ant-modal-bg': 'var(--vscode-editor-background)',
+          '--ant-modal-content-bg': 'var(--vscode-editor-background)',
+        } as React.CSSProperties}
+        styles={{
+          content: {
+            backgroundColor: 'var(--vscode-editor-background)',
+            color: 'var(--vscode-foreground)',
+            padding: '16px',
+          },
+          header: {
+            backgroundColor: 'var(--vscode-editor-background)',
+            borderBottom: '1px solid var(--vscode-panel-border)',
+            padding: '12px 16px',
+          },
+          body: {
+            padding: '8px 0',
+          },
+          mask: {
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          },
+        }}
+        closeIcon={
+          <span style={{ 
+            color: 'var(--vscode-foreground)',
+            fontSize: '14px',
+          }}>
+            ✕
+          </span>
+        }
+      >
+        <div style={{ padding: '0' }}>
+          <p style={{ 
+            color: 'var(--vscode-foreground)', 
+            marginBottom: '12px',
+            fontSize: '13px',
+            lineHeight: '1.4',
+          }}>
+            打开文件夹 <strong>{pendingEditorAction?.folderName}</strong>
+          </p>
+          <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+            <Button
+              size="small"
+              onClick={() => handleEditorSelection('vscode')}
+              style={{
+                backgroundColor: 'var(--vscode-button-background)',
+                borderColor: 'var(--vscode-button-border)',
+                color: 'var(--vscode-button-foreground)',
+                height: '32px',
+                fontSize: '13px',
+              }}
+              block
+            >
+              VS Code
+            </Button>
+            <Button
+              size="small"
+              onClick={() => handleEditorSelection('cursor')}
+              style={{
+                backgroundColor: 'var(--vscode-button-background)',
+                borderColor: 'var(--vscode-button-border)',
+                color: 'var(--vscode-button-foreground)',
+                height: '32px',
+                fontSize: '13px',
+              }}
+              block
+            >
+              Cursor
+            </Button>
+          </div>
+          <p style={{ 
+            color: 'var(--vscode-descriptionForeground)', 
+            fontSize: '11px',
+            marginTop: '12px',
+            marginBottom: '0',
+            lineHeight: '1.3',
+          }}>
+            选择将被保存为默认设置
+          </p>
+        </div>
+      </Modal>
     </Layout>
   );
 }
