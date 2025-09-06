@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
-import { Button } from 'antd';
-import { HomeOutlined, BookOutlined, CodeOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import React, { useEffect, useState } from 'react';
+import { Button, Badge } from 'antd';
+import { HomeOutlined, BookOutlined, CodeOutlined, PlusOutlined, SettingOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router';
+import { useBackgroundTasksContext } from './contexts/BackgroundTasksContext';
+import TaskListModal from './components/TaskListModal';
 
 interface Tab {
   key: string;
@@ -23,6 +25,10 @@ const LAST_TAB_KEY = 'proj-ma-last-tab';
 export default function Header({ onBookmarkAdd, onRepoAdd, onFolderAdd }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { getTaskStats } = useBackgroundTasksContext();
+  const [showTaskList, setShowTaskList] = useState(false);
+
+  const taskStats = getTaskStats();
 
   const tabs: Tab[] = [
     {
@@ -136,6 +142,39 @@ export default function Header({ onBookmarkAdd, onRepoAdd, onFolderAdd }: Header
             title={`添加${currentTab.label}`}
           />
         )}
+
+        {/* 后台任务指示器 */}
+        <div style={{ position: 'relative', display: 'inline-block', margin: '0 2px' }}>
+          <Button 
+            type="text" 
+            size="small"
+            icon={
+              <Badge 
+                count={taskStats.active} 
+                dot
+              >
+                <UnorderedListOutlined />
+              </Badge>
+            } 
+            onClick={() => setShowTaskList(true)}
+            style={{
+              width: '24px',
+              height: '24px',
+              minWidth: '24px',
+              padding: '0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: taskStats.active > 0 
+                ? 'var(--vscode-notificationCenterHeader-foreground)' 
+                : 'var(--vscode-foreground)',
+              backgroundColor: 'transparent',
+              border: 'none',
+              fontSize: '12px',
+            }}
+            title={`后台任务 (${taskStats.active} 个活动任务)`}
+          />
+        </div>
         
         {/* 设置按钮 */}
         <Button 
@@ -159,6 +198,12 @@ export default function Header({ onBookmarkAdd, onRepoAdd, onFolderAdd }: Header
           title="设置"
         />
       </div>
+
+      {/* 后台任务列表弹窗 */}
+      <TaskListModal
+        open={showTaskList}
+        onClose={() => setShowTaskList(false)}
+      />
     </div>
   );
 }

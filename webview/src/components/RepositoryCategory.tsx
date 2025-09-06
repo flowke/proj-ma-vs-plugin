@@ -18,7 +18,7 @@ interface RepositoryCategoryComponentProps {
   onDeleteCategory: (categoryId: string) => void;
   onRenameCategory: (categoryId: string, currentName: string) => void;
   onMoveRepository: (repositoryId: string, fromCategoryId: string, toCategoryId: string, toIndex: number) => void;
-  onCloneRepository: (repository: RepositoryItem, cloneType: 'https' | 'ssh') => void;
+  onCloneRepository: (repository: RepositoryItem) => void;
   draggedRepository: { repositoryId: string; categoryId: string } | null;
   dragOverCategory: string | null;
   dragOverRepository: { repositoryId: string; categoryId: string } | null;
@@ -248,7 +248,7 @@ interface SortableRepositoryItemProps {
   onReparse: (repository: RepositoryItem) => void;
   onCopy: (url: string) => void;
   onOpen: (url: string) => void;
-  onClone: (repository: RepositoryItem, cloneType: 'https' | 'ssh') => void;
+  onClone: (repository: RepositoryItem) => void;
   draggedRepository: { repositoryId: string; categoryId: string } | null;
   dragOverRepository: { repositoryId: string; categoryId: string } | null;
   onRepositoryDragStart: (repositoryId: string, categoryId: string) => void;
@@ -365,22 +365,13 @@ function SortableRepositoryItem({
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <MoreDropdown
               items={[
-                ...(repository.cloneUrls?.https ? [{
-                  key: 'clone-https',
+                ...((repository.cloneUrls?.https || repository.cloneUrls?.ssh) ? [{
+                  key: 'clone',
                   icon: <CodeOutlined />,
-                  label: 'Clone (HTTPS)',
+                  label: 'Clone',
                   onClick: (e: any) => {
                     e?.domEvent?.stopPropagation();
-                    onClone(repository, 'https');
-                  },
-                }] : []),
-                ...(repository.cloneUrls?.ssh ? [{
-                  key: 'clone-ssh',
-                  icon: <CodeOutlined />,
-                  label: 'Clone (SSH)',
-                  onClick: (e: any) => {
-                    e?.domEvent?.stopPropagation();
-                    onClone(repository, 'ssh');
+                    onClone(repository);
                   },
                 }] : []),
                 {

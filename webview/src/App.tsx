@@ -2,6 +2,7 @@ import React from 'react';
 import { ConfigProvider, message } from 'antd';
 import { antdTheme, dragStyles } from './theme/antd-theme';
 import { vscodeColors, opacity, shadow, spacing, fontSize, fontWeight, size } from './theme/tokens';
+import { BackgroundTasksProvider } from './contexts/BackgroundTasksContext';
 
 interface AppProps {
   children: React.ReactNode;
@@ -227,10 +228,37 @@ export default function App({ children }: AppProps) {
           width: ${dragStyles.spacing.padding.modal.close.width} !important;
           height: ${dragStyles.spacing.padding.modal.close.height} !important;
         }
+        
+        /* Badge 样式优化 - 确保数字不被截断 */
+        .header-task-badge .ant-badge-count {
+          min-width: 18px !important;
+          height: 18px !important;
+          line-height: 16px !important;
+          padding: 0 6px !important;
+          font-size: 10px !important;
+          border-radius: 9px !important;
+          top: -6px !important;
+          right: -6px !important;
+          background-color: var(--vscode-badge-background) !important;
+          color: var(--vscode-badge-foreground) !important;
+          border: 1px solid var(--vscode-widget-border) !important;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
+          z-index: 10 !important;
+        }
+        
+        .header-task-badge .ant-badge-count-sm {
+          min-width: 18px !important;
+          height: 18px !important;
+          line-height: 16px !important;
+          padding: 0 6px !important;
+          font-size: 10px !important;
+        }
       `}</style>
-      <ConfigProvider theme={antdTheme}>
-        {children}
-      </ConfigProvider>
+      <BackgroundTasksProvider>
+        <ConfigProvider theme={antdTheme}>
+          {children}
+        </ConfigProvider>
+      </BackgroundTasksProvider>
     </>
   );
 }

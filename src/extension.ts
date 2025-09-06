@@ -966,7 +966,7 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'cloneRepository') {
-      const { url, name, cloneType, targetDirectory } = message.payload;
+      const { url, name, cloneType, targetDirectory, taskId } = message.payload;
       
       try {
         console.log('[Extension] Clone target directory path:', targetDirectory);
@@ -1014,7 +1014,8 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
           payload: {
             repository: name,
             directory: targetDirectory,
-            cloneType: cloneType
+            cloneType: cloneType,
+            taskId: taskId
           }
         });
 
@@ -1083,7 +1084,8 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
               directory: targetDirectory,
               success: success,
               exitCode: code,
-              hasOutput: hasOutput
+              hasOutput: hasOutput,
+              taskId: taskId
             }
           });
         });
@@ -1102,7 +1104,8 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
               repository: name,
               directory: targetDirectory,
               success: false,
-              error: error.message
+              error: error.message,
+              taskId: taskId
             }
           });
         });
@@ -1118,7 +1121,8 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
             repository: name,
             directory: targetDirectory,
             success: false,
-            error: error instanceof Error ? error.message : String(error)
+            error: error instanceof Error ? error.message : String(error),
+            taskId: taskId
           }
         });
       }

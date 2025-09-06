@@ -922,6 +922,25 @@ export default function Home() {
                           }}
                           title="在此目录打开终端"
                         />
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<ReloadOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRefreshDirectory(f.uri);
+                          }}
+                          style={{
+                            color: 'var(--vscode-sideBarSectionHeader-foreground)',
+                            opacity: 0.8,
+                            fontSize: '12px',
+                            padding: '0',
+                            width: '20px',
+                            height: '20px',
+                            minWidth: '20px',
+                          }}
+                          title="刷新目录"
+                        />
                         <MoreDropdown
                           items={[
                             {
@@ -940,15 +959,6 @@ export default function Home() {
                               onClick: (e: any) => {
                                 e?.domEvent?.stopPropagation();
                                 handleCloneToDirectory(f);
-                              },
-                            },
-                            {
-                              key: 'refresh',
-                              icon: <ReloadOutlined />,
-                              label: '刷新目录',
-                              onClick: (e: any) => {
-                                e?.domEvent?.stopPropagation();
-                                handleRefreshDirectory(f.uri);
                               },
                             },
                             {

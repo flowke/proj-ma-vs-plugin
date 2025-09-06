@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Button, Layout, Modal, Form, Input, message, Select, Divider } from 'antd';
+import { Button, Layout, Modal, Form, Input, message, Select, Divider, Radio } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { RepositoryItem, RepositoryCategory, ProjectConfig } from './types';
 import { DEFAULT_CONFIG } from './types';
@@ -8,6 +8,7 @@ import Header from './Header';
 import { RepositoryCategoryComponent } from './components';
 import { extractRepoInfo, copyToClipboard, parseRepositoryInput, validateRepositoryUrl } from './utils';
 import { useClone } from './hooks/useClone';
+import { useBackgroundTasksContext } from './contexts/BackgroundTasksContext';
 
 const { Content } = Layout;
 
@@ -23,8 +24,9 @@ export default function Repositories() {
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [cloneRepository, setCloneRepository] = useState<{repository: RepositoryItem, cloneType: 'https' | 'ssh'} | null>(null);
   
-  // 使用克隆 hook
+  // 使用克隆 hook 和后台任务 hook
   const { cloneState, resetCloneState } = useClone(config.addedDirectories);
+  const { addTask } = useBackgroundTasksContext();
   const [form] = Form.useForm();
   const [quickAddForm] = Form.useForm();
   const [renameForm] = Form.useForm();
@@ -125,13 +127,28 @@ export default function Repositories() {
               
               console.log('[Repositories] Auto clone target path:', targetPath);
               
+              // 创建后台任务
+              const taskId = addTask({
+                type: 'clone',
+                title: `克隆 ${cloneRepository.repository.name}`,
+                description: '准备开始克隆...',
+                status: 'running',
+                metadata: {
+                  repositoryName: cloneRepository.repository.name,
+                  repositoryUrl: cloneInfo.url,
+                  targetDirectory: directory.name,
+                  cloneType: cloneInfo.cloneType.toUpperCase(),
+                },
+              });
+              
               postMessage({ 
                 type: 'cloneRepository', 
                 payload: { 
                   url: cloneInfo.url, 
                   name: cloneRepository.repository.name,
                   cloneType: cloneInfo.cloneType,
-                  targetDirectory: targetPath  // 使用文件系统路径
+                  targetDirectory: targetPath,  // 使用文件系统路径
+                  taskId: taskId  // 传递任务ID给扩展端
                 } 
               });
               
@@ -424,21 +441,28 @@ export default function Repositories() {
     }
   };
 
-  const handleCloneRepository = async (repository: RepositoryItem, cloneType: 'https' | 'ssh') => {
+  const handleCloneRepository = async (repository: RepositoryItem) => {
     // 防止重复克隆
     if (cloneState.isCloning) {
       message.warning('正在进行克隆操作，请稍候...');
       return;
     }
     
-    const cloneUrl = repository.cloneUrls?.[cloneType];
-    if (!cloneUrl) {
-      message.error(`无法获取 ${cloneType.toUpperCase()} 克隆地址`);
+    // 检查是否有可用的克隆地址
+    if (!repository.cloneUrls?.https && !repository.cloneUrls?.ssh) {
+      message.error('该仓库没有可用的克隆地址');
       return;
     }
 
-    // 设置要克隆的仓库信息并打开目录选择模态框
-    setCloneRepository({ repository, cloneType });
+    // 设置要克隆的仓库信息并打开目录选择模态框，默认使用 HTTPS
+    const defaultCloneType = repository.cloneUrls?.https ? 'https' : 'ssh';
+    setCloneRepository({ repository, cloneType: defaultCloneType });
+    
+    // 设置表单初始值
+    cloneForm.setFieldsValue({
+      cloneType: defaultCloneType
+    });
+    
     setShowCloneModal(true);
   };
 
@@ -466,10 +490,11 @@ export default function Repositories() {
     });
   };
 
-  const handleSubmitClone = async (values: { directoryId?: string }) => {
+  const handleSubmitClone = async (values: { directoryId?: string; cloneType: 'https' | 'ssh' }) => {
     if (!cloneRepository) return;
 
-    const { repository, cloneType } = cloneRepository;
+    const { repository } = cloneRepository;
+    const cloneType = values.cloneType;
     const cloneUrl = repository.cloneUrls?.[cloneType];
     
     if (!cloneUrl) {
@@ -491,19 +516,34 @@ export default function Repositories() {
         console.log('[Repositories] Clone target URI:', selectedDirectory.uri);
         console.log('[Repositories] Clone target path:', targetPath);
         
+        // 创建后台任务
+        const taskId = addTask({
+          type: 'clone',
+          title: `克隆 ${repository.name}`,
+          description: '准备开始克隆...',
+          status: 'running',
+          metadata: {
+            repositoryName: repository.name,
+            repositoryUrl: cloneUrl,
+            targetDirectory: selectedDirectory.name,
+            cloneType: cloneType.toUpperCase(),
+          },
+        });
+        
         // 立即关闭弹窗，让克隆在后台进行
         setShowCloneModal(false);
         setCloneRepository(null);
         cloneForm.resetFields();
         
-        // 启动克隆（后台进行）
+        // 启动克隆（后台进行），并传递任务ID
         postMessage({ 
           type: 'cloneRepository', 
           payload: { 
             url: cloneUrl, 
             name: repository.name,
             cloneType,
-            targetDirectory: targetPath  // 传递文件系统路径
+            targetDirectory: targetPath,  // 传递文件系统路径
+            taskId: taskId  // 传递任务ID给扩展端
           } 
         });
       } else {
@@ -1147,13 +1187,26 @@ export default function Repositories() {
             color: 'var(--vscode-foreground)',
             border: '1px solid var(--vscode-panel-border)',
           }}>
-            <div style={{ marginBottom: '4px' }}>
+            <div>
               <strong>仓库:</strong> {cloneRepository?.repository.name}
             </div>
-            <div>
-              <strong>协议:</strong> {cloneRepository?.cloneType.toUpperCase()}
-            </div>
           </div>
+
+          {/* 协议选择 */}
+          <Form.Item
+            label={<span style={{ fontSize: '12px', color: 'var(--vscode-foreground)' }}>克隆协议</span>}
+            name="cloneType"
+            style={{ marginBottom: '16px' }}
+          >
+            <Radio.Group>
+              {cloneRepository?.repository.cloneUrls?.https && (
+                <Radio value="https">HTTPS</Radio>
+              )}
+              {cloneRepository?.repository.cloneUrls?.ssh && (
+                <Radio value="ssh">SSH</Radio>
+              )}
+            </Radio.Group>
+          </Form.Item>
 
           {(config.addedDirectories || []).length > 0 ? (
             <Form.Item
