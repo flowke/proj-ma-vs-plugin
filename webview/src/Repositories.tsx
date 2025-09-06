@@ -17,10 +17,8 @@ export default function Repositories() {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const msg = event.data;
-      console.log('[Repositories] received message:', msg);
       
       if (msg?.type === 'configLoaded' && msg.payload) {
-        console.log('[Repositories] configLoaded:', msg.payload);
         setConfig(msg.payload);
       }
     };
@@ -29,7 +27,6 @@ export default function Repositories() {
     
     // 请求加载配置
     try {
-      console.log('[Repositories] sending loadConfig');
       postMessage({ type: 'loadConfig' });
     } catch (e) {
       console.warn('[Repositories] failed to send loadConfig', e);

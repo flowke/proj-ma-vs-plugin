@@ -12,8 +12,8 @@ export interface ProjectConfig {
   // 通过+号新增的目录
   addedDirectories: AddedDirectory[];
   
-  // 网页书签
-  bookmarks: BookmarkItem[];
+  // 网页书签分类
+  bookmarkCategories: BookmarkCategory[];
   
   // 代码仓库
   repositories: RepositoryItem[];
@@ -71,6 +71,14 @@ export interface BookmarkItem {
   isParsing?: boolean; // 是否正在解析中
 }
 
+export interface BookmarkCategory {
+  id: string;
+  name: string;
+  collapsed?: boolean; // 是否折叠，默认展开
+  bookmarks: BookmarkItem[];
+  createdAt: string; // ISO string
+}
+
 export interface RepositoryItem {
   id: string;
   name: string;
@@ -86,7 +94,7 @@ export type VSCodeApi = { postMessage: (message: any) => void } | undefined;
 
 // 消息类型
 export interface VSCodeMessage {
-  type: 'webviewReady' | 'pickFolder' | 'openConfigLocation' | 'openConfigFile' | 'saveConfig' | 'loadConfig' | 'toggleFavorite' | 'refreshDirectory' | 'directoryRefreshed' | 'openTerminal' | 'openInEditor' | 'openUrl' | 'addBookmark' | 'bookmarkAdded' | 'createBookmarkQuick' | 'bookmarkCreated' | 'parseBookmarkInfo' | 'bookmarkInfoParsed' | 'bookmarkUpdated' | 'reparseBookmark' | 'bookmarkReparsing';
+  type: 'webviewReady' | 'pickFolder' | 'openConfigLocation' | 'openConfigFile' | 'saveConfig' | 'loadConfig' | 'toggleFavorite' | 'refreshDirectory' | 'directoryRefreshed' | 'openTerminal' | 'openInEditor' | 'openUrl' | 'addBookmark' | 'bookmarkAdded' | 'createBookmarkQuick' | 'bookmarkCreated' | 'parseBookmarkInfo' | 'bookmarkInfoParsed' | 'bookmarkUpdated' | 'reparseBookmark' | 'bookmarkReparsing' | 'createBookmarkCategory' | 'bookmarkCategoryCreated' | 'updateBookmarkCategories' | 'bookmarkCategoriesUpdated';
   payload?: any;
 }
 
@@ -96,7 +104,13 @@ export const DEFAULT_CONFIG: ProjectConfig = {
   favorites: [],
   recentlyOpened: [],
   addedDirectories: [],
-  bookmarks: [],
+  bookmarkCategories: [{
+    id: 'default',
+    name: '未分类',
+    collapsed: false,
+    bookmarks: [],
+    createdAt: new Date().toISOString(),
+  }],
   repositories: [],
   settings: {
     maxRecentItems: 20,

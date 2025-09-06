@@ -13,7 +13,7 @@ import {
 } from './config';
 
 // 快速创建书签（使用默认信息）
-async function createBookmarkQuick(targetUrl: string): Promise<{success: boolean; error?: string; bookmark?: any}> {
+async function createBookmarkQuick(targetUrl: string, categoryId?: string): Promise<{success: boolean; error?: string; bookmark?: any; categoryId?: string}> {
   try {
     const parsedUrl = new URL(targetUrl);
     const domain = parsedUrl.hostname.replace('www.', '');
@@ -33,22 +33,50 @@ async function createBookmarkQuick(targetUrl: string): Promise<{success: boolean
     const config = await loadConfig();
     
     // 检查是否已存在相同URL的书签
-    const existingBookmark = (config.bookmarks || []).find((bookmark: any) => bookmark.url === targetUrl);
+    const allBookmarks = (config.bookmarkCategories || []).flatMap((category: any) => category.bookmarks || []);
+    const existingBookmark = allBookmarks.find((bookmark: any) => bookmark.url === targetUrl);
     if (existingBookmark) {
       return { success: false, error: '书签已存在' };
     }
 
-    // 添加新书签
+    // 确定目标分类
+    let targetCategoryId = categoryId || 'default';
+    let targetCategory = (config.bookmarkCategories || []).find((cat: any) => cat.id === targetCategoryId);
+    
+    // 如果指定的分类不存在，使用默认分类
+    if (!targetCategory) {
+      targetCategory = (config.bookmarkCategories || []).find((cat: any) => cat.name === '未分类');
+      targetCategoryId = targetCategory?.id || 'default';
+    }
+    
+    // 如果还是没有找到，创建默认分类
+    if (!targetCategory) {
+      targetCategory = {
+        id: 'default',
+        name: '未分类',
+        collapsed: false,
+        bookmarks: [],
+        createdAt: new Date().toISOString(),
+      };
+      config.bookmarkCategories = [...(config.bookmarkCategories || []), targetCategory];
+    }
+
+    // 添加新书签到指定分类
+    const updatedCategories = (config.bookmarkCategories || []).map((category: any) => 
+      category.id === targetCategoryId
+        ? { ...category, bookmarks: [...(category.bookmarks || []), quickBookmark] }
+        : category
+    );
+
     const updatedConfig = {
       ...config,
-      bookmarks: [...(config.bookmarks || []), quickBookmark],
+      bookmarkCategories: updatedCategories,
     };
 
     // 保存配置
     await saveConfig(updatedConfig);
 
-    console.log('[Extension] Quick bookmark created:', quickBookmark);
-    return { success: true, bookmark: quickBookmark };
+    return { success: true, bookmark: quickBookmark, categoryId: targetCategoryId };
 
   } catch (error: any) {
     console.error('[Extension] Error creating quick bookmark:', error);
@@ -59,17 +87,21 @@ async function createBookmarkQuick(targetUrl: string): Promise<{success: boolean
 // 重新解析书签信息
 async function reparseBookmarkInfo(bookmarkId: string, targetUrl: string, webview: vscode.Webview): Promise<void> {
   try {
-    console.log('[Extension] Reparsing bookmark info for:', bookmarkId, targetUrl);
     
     // 先设置书签为解析中状态
     const config = await loadConfig();
-    const updatedConfig = {
-      ...config,
-      bookmarks: (config.bookmarks || []).map((bookmark: any) => 
+    const updatedCategories = (config.bookmarkCategories || []).map((category: any) => ({
+      ...category,
+      bookmarks: (category.bookmarks || []).map((bookmark: any) => 
         bookmark.id === bookmarkId 
           ? { ...bookmark, isParsing: true }
           : bookmark
-      ),
+      )
+    }));
+    
+    const updatedConfig = {
+      ...config,
+      bookmarkCategories: updatedCategories,
     };
     await saveConfig(updatedConfig);
     
@@ -87,13 +119,18 @@ async function reparseBookmarkInfo(bookmarkId: string, targetUrl: string, webvie
     
     // 解析失败时，移除解析中状态
     const config = await loadConfig();
-    const updatedConfig = {
-      ...config,
-      bookmarks: (config.bookmarks || []).map((bookmark: any) => 
+    const updatedCategories = (config.bookmarkCategories || []).map((category: any) => ({
+      ...category,
+      bookmarks: (category.bookmarks || []).map((bookmark: any) => 
         bookmark.id === bookmarkId 
           ? { ...bookmark, isParsing: false }
           : bookmark
-      ),
+      )
+    }));
+    
+    const updatedConfig = {
+      ...config,
+      bookmarkCategories: updatedCategories,
     };
     await saveConfig(updatedConfig);
   }
@@ -102,7 +139,6 @@ async function reparseBookmarkInfo(bookmarkId: string, targetUrl: string, webvie
 // 后台解析书签信息
 async function parseBookmarkInfoInBackground(bookmarkId: string, targetUrl: string, webview: vscode.Webview): Promise<void> {
   try {
-    console.log('[Extension] Parsing bookmark info in background for:', targetUrl);
     
     const response = await axios.get(targetUrl, {
       timeout: 10000,
@@ -174,9 +210,9 @@ async function parseBookmarkInfoInBackground(bookmarkId: string, targetUrl: stri
 
     // 更新书签信息
     const config = await loadConfig();
-    const updatedConfig = {
-      ...config,
-      bookmarks: (config.bookmarks || []).map((bookmark: any) => 
+    const updatedCategories = (config.bookmarkCategories || []).map((category: any) => ({
+      ...category,
+      bookmarks: (category.bookmarks || []).map((bookmark: any) => 
         bookmark.id === bookmarkId 
           ? {
               ...bookmark,
@@ -185,11 +221,15 @@ async function parseBookmarkInfoInBackground(bookmarkId: string, targetUrl: stri
               isParsing: false, // 解析完成
             }
           : bookmark
-      ),
+      )
+    }));
+    
+    const updatedConfig = {
+      ...config,
+      bookmarkCategories: updatedCategories,
     };
 
     await saveConfig(updatedConfig);
-    console.log('[Extension] Bookmark info parsed and updated:', { bookmarkId, title, icon });
     
     // 发送书签更新消息
     webview.postMessage({
@@ -202,16 +242,21 @@ async function parseBookmarkInfoInBackground(bookmarkId: string, targetUrl: stri
     
     // 解析失败时，移除解析中状态
     const config = await loadConfig();
-    const updatedConfig = {
-      ...config,
-      bookmarks: (config.bookmarks || []).map((bookmark: any) => 
+    const updatedCategories = (config.bookmarkCategories || []).map((category: any) => ({
+      ...category,
+      bookmarks: (category.bookmarks || []).map((bookmark: any) => 
         bookmark.id === bookmarkId 
           ? {
               ...bookmark,
               isParsing: false, // 解析失败，移除解析中状态
             }
           : bookmark
-      ),
+      )
+    }));
+    
+    const updatedConfig = {
+      ...config,
+      bookmarkCategories: updatedCategories,
     };
 
     await saveConfig(updatedConfig);
@@ -221,7 +266,6 @@ async function parseBookmarkInfoInBackground(bookmarkId: string, targetUrl: stri
 // 获取网页信息并直接创建书签的函数
 async function fetchWebsiteInfoAndCreateBookmark(targetUrl: string): Promise<{success: boolean; error?: string; bookmark?: any}> {
   try {
-    console.log('[Extension] Fetching website info for:', targetUrl);
     
     // 使用 axios 获取网页内容
     const response = await axios.get(targetUrl, {
@@ -306,21 +350,40 @@ async function fetchWebsiteInfoAndCreateBookmark(targetUrl: string): Promise<{su
     const config = await loadConfig();
     
     // 检查是否已存在相同URL的书签
-    const existingBookmark = (config.bookmarks || []).find((bookmark: any) => bookmark.url === targetUrl);
+    const allBookmarks = (config.bookmarkCategories || []).flatMap((category: any) => category.bookmarks || []);
+    const existingBookmark = allBookmarks.find((bookmark: any) => bookmark.url === targetUrl);
     if (existingBookmark) {
       return { success: false, error: '书签已存在' };
     }
 
-    // 添加新书签
+    // 获取默认分类
+    let defaultCategory = (config.bookmarkCategories || []).find((cat: any) => cat.name === '未分类');
+    if (!defaultCategory) {
+      defaultCategory = {
+        id: 'default',
+        name: '未分类',
+        collapsed: false,
+        bookmarks: [],
+        createdAt: new Date().toISOString(),
+      };
+      config.bookmarkCategories = [...(config.bookmarkCategories || []), defaultCategory];
+    }
+
+    // 添加新书签到默认分类
+    const updatedCategories = (config.bookmarkCategories || []).map((category: any) => 
+      category.id === defaultCategory.id
+        ? { ...category, bookmarks: [...(category.bookmarks || []), newBookmark] }
+        : category
+    );
+
     const updatedConfig = {
       ...config,
-      bookmarks: [...(config.bookmarks || []), newBookmark],
+      bookmarkCategories: updatedCategories,
     };
 
     // 保存配置
     await saveConfig(updatedConfig);
 
-    console.log('[Extension] Bookmark created successfully:', newBookmark);
     return { success: true, bookmark: newBookmark };
 
   } catch (error: any) {
@@ -343,18 +406,38 @@ async function fetchWebsiteInfoAndCreateBookmark(targetUrl: string): Promise<{su
 
       // 加载当前配置并添加默认书签
       const config = await loadConfig();
-      const existingBookmark = (config.bookmarks || []).find((bookmark: any) => bookmark.url === targetUrl);
+      const allBookmarks = (config.bookmarkCategories || []).flatMap((category: any) => category.bookmarks || []);
+      const existingBookmark = allBookmarks.find((bookmark: any) => bookmark.url === targetUrl);
       if (existingBookmark) {
         return { success: false, error: '书签已存在' };
       }
 
+      // 获取默认分类
+      let defaultCategory = (config.bookmarkCategories || []).find((cat: any) => cat.name === '未分类');
+      if (!defaultCategory) {
+        defaultCategory = {
+          id: 'default',
+          name: '未分类',
+          collapsed: false,
+          bookmarks: [],
+          createdAt: new Date().toISOString(),
+        };
+        config.bookmarkCategories = [...(config.bookmarkCategories || []), defaultCategory];
+      }
+
+      // 添加默认书签到默认分类
+      const updatedCategories = (config.bookmarkCategories || []).map((category: any) => 
+        category.id === defaultCategory.id
+          ? { ...category, bookmarks: [...(category.bookmarks || []), defaultBookmark] }
+          : category
+      );
+
       const updatedConfig = {
         ...config,
-        bookmarks: [...(config.bookmarks || []), defaultBookmark],
+        bookmarkCategories: updatedCategories,
       };
 
       await saveConfig(updatedConfig);
-      console.log('[Extension] Default bookmark created:', defaultBookmark);
       return { success: true, bookmark: defaultBookmark, error: `获取网页信息失败，已使用默认信息: ${error.message}` };
       
     } catch (parseError) {
@@ -365,9 +448,7 @@ async function fetchWebsiteInfoAndCreateBookmark(targetUrl: string): Promise<{su
 
 function setupWebviewMessaging(webview: vscode.Webview, context: vscode.ExtensionContext) {
   const disposable = webview.onDidReceiveMessage(async (message) => {
-    console.log('[Extension] received message from webview:', message);
     const kind = message?.type ?? message?.command;
-    console.log('[Extension] extracted kind:', kind);
     
     if (kind === 'alert' && typeof message?.text === 'string') {
       vscode.window.showInformationMessage(`[Webview] ${message.text}`);
@@ -375,13 +456,11 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'webviewReady') {
-      console.log('[Extension] webviewReady received, replying hello');
       await webview.postMessage({ type: 'helloFromExtension', command: 'helloFromExtension' });
       return;
     }
     
     if (kind === 'loadConfig') {
-      console.log('[Extension] loading config...');
       const config = await loadConfig();
       await webview.postMessage({
         type: 'configLoaded',
@@ -391,18 +470,14 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'saveConfig') {
-      console.log('[Extension] saving config...', JSON.stringify(message.payload, null, 2));
       await saveConfig(message.payload);
-      console.log('[Extension] config saved successfully');
       return;
     }
     
     if (kind === 'openConfigLocation') {
-      console.log('[Extension] opening config location...');
       const configDir = getConfigDirectory();
       try {
         await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(configDir));
-        console.log('[Extension] Successfully opened config location:', configDir);
       } catch (error) {
         console.error('[Extension] Error opening config location:', error);
         vscode.window.showErrorMessage(`打开配置文件位置失败: ${error}`);
@@ -411,14 +486,12 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'openConfigFile') {
-      console.log('[Extension] opening config file...');
       const configPath = getConfigFilePath();
       try {
         // 确保配置文件存在
         await loadConfig(); // 这会自动创建配置文件如果不存在
         const uri = vscode.Uri.file(configPath);
         await vscode.commands.executeCommand('vscode.open', uri);
-        console.log('[Extension] Successfully opened config file:', configPath);
       } catch (error) {
         console.error('[Extension] Error opening config file:', error);
         vscode.window.showErrorMessage(`打开配置文件失败: ${error}`);
@@ -427,7 +500,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'pickFolder') {
-      console.log('[Extension] opening folder picker...');
       const selection = await vscode.window.showOpenDialog({
         canSelectFolders: true,
         canSelectFiles: false,
@@ -435,11 +507,9 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
         openLabel: '选择文件夹',
       });
       if (!selection || selection.length === 0) {
-        console.log('[Extension] user cancelled folder picking');
         return;
       }
       const folderUri = selection[0];
-      console.log('[Extension] selected folder:', folderUri.fsPath);
       const entries = await vscode.workspace.fs.readDirectory(folderUri);
       const subfolders = entries
         .filter(([, type]) => type === vscode.FileType.Directory)
@@ -448,7 +518,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
           return { name, uri: childUri.toString() };
         });
       const folderName = path.basename(folderUri.fsPath);
-      console.log('[Extension] subfolders:', subfolders);
       await webview.postMessage({
         type: 'pickedFolder',
         command: 'pickedFolder',
@@ -458,12 +527,10 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
           subfolders,
         },
       });
-      console.log('[Extension] posted pickedFolder back to webview');
       return;
     }
     
     if (kind === 'refreshDirectory') {
-      console.log('[Extension] refreshing directory...');
       const directoryUri = message.payload?.uri;
       if (!directoryUri) {
         console.error('[Extension] No directory URI provided for refresh');
@@ -472,7 +539,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       
       try {
         const folderUri = vscode.Uri.parse(directoryUri);
-        console.log('[Extension] refreshing folder:', folderUri.fsPath);
         
         // 检查目录是否仍然存在
         try {
@@ -491,7 +557,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
             return { name, uri: childUri.toString() };
           });
         
-        console.log('[Extension] refreshed subfolders:', subfolders);
         await webview.postMessage({
           type: 'directoryRefreshed',
           payload: {
@@ -499,7 +564,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
             subfolders,
           },
         });
-        console.log('[Extension] posted directoryRefreshed back to webview');
       } catch (error) {
         console.error('[Extension] Error refreshing directory:', error);
         vscode.window.showErrorMessage(`刷新目录失败: ${error}`);
@@ -508,7 +572,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'openTerminal') {
-      console.log('[Extension] opening terminal...');
       const directoryUri = message.payload?.uri;
       if (!directoryUri) {
         console.error('[Extension] No directory URI provided for terminal');
@@ -517,7 +580,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       
       try {
         const folderUri = vscode.Uri.parse(directoryUri);
-        console.log('[Extension] opening terminal at:', folderUri.fsPath);
         
         // 检查目录是否存在
         try {
@@ -535,7 +597,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
         });
         terminal.show();
         
-        console.log('[Extension] terminal opened successfully');
       } catch (error) {
         console.error('[Extension] Error opening terminal:', error);
         vscode.window.showErrorMessage(`打开终端失败: ${error}`);
@@ -544,7 +605,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'openInEditor') {
-      console.log('[Extension] opening in editor...');
       const directoryUri = message.payload?.uri;
       const editor = message.payload?.editor;
       
@@ -561,7 +621,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       
       try {
         const folderUri = vscode.Uri.parse(directoryUri);
-        console.log('[Extension] opening in editor:', editor, 'at:', folderUri.fsPath);
         
         // 检查目录是否存在
         try {
@@ -586,7 +645,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
           throw new Error(`Unsupported editor: ${editor}`);
         }
         
-        console.log('[Extension] Executing command:', command, args);
         
         // 使用 spawn 在后台静默执行命令
         const childProcess = spawn(command, args, {
@@ -601,9 +659,7 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
         });
         
         childProcess.on('exit', (code) => {
-          console.log('[Extension] Process exited with code:', code);
           if (code === 0) {
-            console.log('[Extension] Successfully opened in editor:', editor);
             vscode.window.showInformationMessage(`已在 ${editor === 'vscode' ? 'VS Code' : 'Cursor'} 中打开: ${path.basename(folderUri.fsPath)}`);
           } else {
             throw new Error(`编辑器进程退出，错误代码: ${code}`);
@@ -617,7 +673,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'createBookmarkQuick') {
-      console.log('[Extension] creating bookmark quickly...');
       const url = message.payload?.url;
       if (!url) {
         console.error('[Extension] No URL provided for createBookmarkQuick');
@@ -632,9 +687,8 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       }
       
       try {
-        console.log('[Extension] Creating quick bookmark for:', url);
-        const result = await createBookmarkQuick(url);
-        console.log('[Extension] Quick bookmark creation result:', result);
+        const categoryId = message.payload?.categoryId;
+        const result = await createBookmarkQuick(url, categoryId);
         
         await webview.postMessage({
           type: 'bookmarkCreated',
@@ -650,13 +704,10 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
         
         // 如果创建成功，启动后台解析
         if (result.success && result.bookmark) {
-          console.log('[Extension] Starting background parsing for bookmark:', result.bookmark.id);
           // 不等待解析完成，立即返回
           parseBookmarkInfoInBackground(result.bookmark.id, url, webview).then(() => {
             // 解析完成后发送更新
-            console.log('[Extension] Background parsing completed, sending config update');
             loadConfig().then(config => {
-              console.log('[Extension] Sending configLoaded message with updated bookmarks:', config.bookmarks);
               webview.postMessage({
                 type: 'configLoaded',
                 payload: config,
@@ -683,7 +734,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'addBookmark') {
-      console.log('[Extension] adding bookmark...');
       const url = message.payload?.url;
       if (!url) {
         console.error('[Extension] No URL provided for addBookmark');
@@ -698,9 +748,7 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       }
       
       try {
-        console.log('[Extension] Creating bookmark for:', url);
         const result = await fetchWebsiteInfoAndCreateBookmark(url);
-        console.log('[Extension] Bookmark creation result:', result);
         
         await webview.postMessage({
           type: 'bookmarkAdded',
@@ -728,7 +776,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'reparseBookmark') {
-      console.log('[Extension] reparsing bookmark...');
       const bookmarkId = message.payload?.bookmarkId;
       const url = message.payload?.url;
       
@@ -740,7 +787,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       try {
         // 异步执行重新解析，不等待完成
         reparseBookmarkInfo(bookmarkId, url, webview);
-        console.log('[Extension] Bookmark reparsing started for:', bookmarkId);
       } catch (error) {
         console.error('[Extension] Error starting bookmark reparsing:', error);
       }
@@ -748,7 +794,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
     }
     
     if (kind === 'openUrl') {
-      console.log('[Extension] opening URL...');
       const url = message.payload?.url;
       if (!url) {
         console.error('[Extension] No URL provided');
@@ -758,7 +803,6 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       
       try {
         await vscode.env.openExternal(vscode.Uri.parse(url));
-        console.log('[Extension] Successfully opened URL:', url);
       } catch (error) {
         console.error('[Extension] Error opening URL:', error);
         vscode.window.showErrorMessage(`打开链接失败: ${error}`);
@@ -795,7 +839,6 @@ class ProjMaViewProvider implements vscode.WebviewViewProvider {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('[Extension] Activating proj-ma extension...');
   
   // 初始化配置文件
   initializeConfig();
@@ -805,7 +848,6 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerWebviewViewProvider(ProjMaViewProvider.viewType, provider)
   );
   
-  console.log('[Extension] proj-ma extension activated successfully');
 }
 
 

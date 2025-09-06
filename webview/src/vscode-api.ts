@@ -32,7 +32,6 @@ export function postMessage(message: any): boolean {
     return false;
   }
   
-  console.log('[VSCodeAPI] Sending message:', message);
   api.postMessage(message);
   return true;
 }

@@ -15,10 +15,8 @@ export default function Settings() {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const message = event.data;
-      console.log('[Settings] received message:', message);
       
       if (message?.type === 'configLoaded' && message.payload) {
-        console.log('[Settings] configLoaded:', message.payload);
         setConfig(message.payload);
       }
     };
@@ -27,7 +25,6 @@ export default function Settings() {
     
     // 加载配置
     try {
-      console.log('[Settings] requesting config load');
       postMessage({ type: 'loadConfig' });
     } catch (e) {
       console.warn('[Settings] failed to request config load', e);
@@ -37,7 +34,6 @@ export default function Settings() {
   }, []);
 
   const handleOpenConfigLocation = () => {
-    console.log('[Settings] handleOpenConfigLocation clicked');
     if (!isVSCodeApiAvailable()) {
       console.warn('[Settings] VS Code API 不可用');
       alert('VS Code API 不可用，请确保在 VS Code 扩展环境中运行');
@@ -50,7 +46,6 @@ export default function Settings() {
   };
 
   const handleOpenConfigFile = () => {
-    console.log('[Settings] handleOpenConfigFile clicked');
     if (!isVSCodeApiAvailable()) {
       console.warn('[Settings] VS Code API 不可用');
       alert('VS Code API 不可用，请确保在 VS Code 扩展环境中运行');

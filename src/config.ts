@@ -9,7 +9,7 @@ export interface ProjectConfig {
   favorites: any[];
   recentlyOpened: any[];
   addedDirectories: any[];
-  bookmarks: any[];
+  bookmarkCategories: any[];
   repositories: any[];
   settings: {
     maxRecentItems: number;
@@ -22,7 +22,13 @@ export const DEFAULT_CONFIG: ProjectConfig = {
   favorites: [],
   recentlyOpened: [],
   addedDirectories: [],
-  bookmarks: [],
+  bookmarkCategories: [{
+    id: 'default',
+    name: '未分类',
+    collapsed: false,
+    bookmarks: [],
+    createdAt: new Date().toISOString(),
+  }],
   repositories: [],
   settings: {
     maxRecentItems: 20,
@@ -42,6 +48,21 @@ export async function loadConfig(): Promise<ProjectConfig> {
       const content = fs.readFileSync(configPath, 'utf8');
       const config = JSON.parse(content);
       
+      // 处理从旧的 bookmarks 到新的 bookmarkCategories 的数据迁移
+      let bookmarkCategories = config.bookmarkCategories || DEFAULT_CONFIG.bookmarkCategories;
+      
+      // 如果存在旧的 bookmarks 结构而没有新的 bookmarkCategories
+      if (config.bookmarks && !config.bookmarkCategories) {
+        const defaultCategory = {
+          id: 'default',
+          name: '未分类',
+          collapsed: false,
+          bookmarks: config.bookmarks || [],
+          createdAt: new Date().toISOString(),
+        };
+        bookmarkCategories = [defaultCategory];
+      }
+      
       // 深度合并配置，确保新添加的字段有默认值
       const mergedConfig: ProjectConfig = {
         ...DEFAULT_CONFIG,
@@ -54,15 +75,13 @@ export async function loadConfig(): Promise<ProjectConfig> {
         favorites: config.favorites || DEFAULT_CONFIG.favorites,
         recentlyOpened: config.recentlyOpened || DEFAULT_CONFIG.recentlyOpened,
         addedDirectories: config.addedDirectories || DEFAULT_CONFIG.addedDirectories,
-        bookmarks: config.bookmarks || DEFAULT_CONFIG.bookmarks,
+        bookmarkCategories,
         repositories: config.repositories || DEFAULT_CONFIG.repositories,
       };
       
-      console.log('[Config] Config loaded and merged with defaults');
       return mergedConfig;
     } else {
       // 如果配置文件不存在，创建默认配置文件
-      console.log('[Config] Config file not found, creating default config...');
       await saveConfig(DEFAULT_CONFIG);
       return DEFAULT_CONFIG;
     }
@@ -79,7 +98,6 @@ export async function saveConfig(config: ProjectConfig): Promise<void> {
   const configPath = getConfigFilePath();
   try {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
-    console.log('[Config] Config saved to:', configPath);
   } catch (error) {
     console.error('[Config] Error saving config:', error);
     vscode.window.showErrorMessage(`保存配置文件失败: ${error}`);
@@ -90,19 +108,14 @@ export async function saveConfig(config: ProjectConfig): Promise<void> {
 export async function initializeConfig(): Promise<void> {
   try {
     const configPath = getConfigFilePath();
-    console.log('[Config] Initializing config file at:', configPath);
     
     if (!fs.existsSync(configPath)) {
-      console.log('[Config] Config file does not exist, creating...');
       await saveConfig(DEFAULT_CONFIG);
-      console.log('[Config] Default config file created successfully');
     } else {
-      console.log('[Config] Config file already exists');
       // 验证配置文件格式，如果损坏则重新创建
       try {
         const content = fs.readFileSync(configPath, 'utf8');
         JSON.parse(content);
-        console.log('[Config] Config file is valid');
       } catch (parseError) {
         console.warn('[Config] Config file is corrupted, recreating...', parseError);
         await saveConfig(DEFAULT_CONFIG);
@@ -133,7 +146,7 @@ export function validateConfig(config: any): config is ProjectConfig {
     Array.isArray(config.favorites) &&
     Array.isArray(config.recentlyOpened) &&
     Array.isArray(config.addedDirectories) &&
-    Array.isArray(config.bookmarks || []) &&
+    Array.isArray(config.bookmarkCategories || []) &&
     Array.isArray(config.repositories || []) &&
     typeof config.settings === 'object' &&
     config.settings !== null

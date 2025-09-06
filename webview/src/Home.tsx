@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Collapse, Layout, List, Modal } from 'antd';
-import { StarOutlined, StarFilled, ReloadOutlined, BarsOutlined, CodeOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { Button, Collapse, Layout, List, Modal, Dropdown } from 'antd';
+import { StarOutlined, StarFilled, ReloadOutlined, BarsOutlined, CodeOutlined, FolderOpenOutlined, MoreOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router';
 import type { AddedDirectory, ProjectConfig } from './types';
 import { DEFAULT_CONFIG } from './types';
@@ -21,14 +21,8 @@ export default function Home() {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const message = event.data;
-      console.log('[Webview] received message:', message);
-      
-      if (message?.type === 'helloFromExtension') {
-        console.log('[Webview] helloFromExtension received');
-      }
       
       if (message?.type === 'configLoaded' && message.payload) {
-        console.log('[Webview] configLoaded:', message.payload);
         setConfig(message.payload);
       }
       
@@ -38,7 +32,6 @@ export default function Home() {
           name: string;
           subfolders: any[];
         };
-        console.log('[Webview] pickedFolder payload:', payload);
         
         const newDirectory: AddedDirectory = {
           id: payload.uri,
@@ -68,7 +61,6 @@ export default function Home() {
           uri: string;
           subfolders: any[];
         };
-        console.log('[Webview] directoryRefreshed payload:', payload);
         
         setConfig((prev) => {
           const updated = {
@@ -104,7 +96,6 @@ export default function Home() {
     
     // 握手：Webview 启动后告知扩展端自己已就绪，并请求加载配置
     try {
-      console.log('[Webview] sending webviewReady');
       postMessage({ type: 'webviewReady' });
       postMessage({ type: 'loadConfig' });
     } catch (e) {
@@ -115,13 +106,11 @@ export default function Home() {
   }, []);
 
   const handleAdd = () => {
-    console.log('[Webview] handleAdd clicked');
     if (!isVSCodeApiAvailable()) {
       console.warn('VS Code API 不可用');
       alert('VS Code API 不可用，请确保在 VS Code 扩展环境中运行');
       return;
     }
-    console.log('[Webview] postMessage: pickFolder');
     postMessage({ type: 'pickFolder' });
   };
 
@@ -177,29 +166,24 @@ export default function Home() {
   };
 
   const handleRefreshDirectory = (directoryUri: string) => {
-    console.log('[Webview] handleRefreshDirectory clicked for:', directoryUri);
     if (!isVSCodeApiAvailable()) {
       console.warn('VS Code API 不可用');
       alert('VS Code API 不可用，请确保在 VS Code 扩展环境中运行');
       return;
     }
-    console.log('[Webview] postMessage: refreshDirectory');
     postMessage({ type: 'refreshDirectory', payload: { uri: directoryUri } });
   };
 
   const handleOpenTerminal = (directoryUri: string) => {
-    console.log('[Webview] handleOpenTerminal clicked for:', directoryUri);
     if (!isVSCodeApiAvailable()) {
       console.warn('VS Code API 不可用');
       alert('VS Code API 不可用，请确保在 VS Code 扩展环境中运行');
       return;
     }
-    console.log('[Webview] postMessage: openTerminal');
     postMessage({ type: 'openTerminal', payload: { uri: directoryUri } });
   };
 
   const handleOpenInEditor = (folderUri: string, folderName: string) => {
-    console.log('[Webview] handleOpenInEditor clicked for:', folderUri);
     if (!isVSCodeApiAvailable()) {
       console.warn('VS Code API 不可用');
       alert('VS Code API 不可用，请确保在 VS Code 扩展环境中运行');
@@ -209,7 +193,6 @@ export default function Home() {
     // 检查是否已设置默认编辑器
     if (config.settings.defaultEditor) {
       // 直接使用已设置的编辑器
-      console.log('[Webview] postMessage: openInEditor with', config.settings.defaultEditor);
       postMessage({ 
         type: 'openInEditor', 
         payload: { 
@@ -239,7 +222,6 @@ export default function Home() {
     postMessage({ type: 'saveConfig', payload: updated });
 
     // 执行打开操作
-    console.log('[Webview] postMessage: openInEditor with', editor);
     postMessage({ 
       type: 'openInEditor', 
       payload: { 
@@ -323,6 +305,43 @@ export default function Home() {
     setDragOverIndex(null);
   };
 
+  // 处理删除目录
+  const handleDeleteDirectory = (directoryId: string) => {
+    const directoryToDelete = config.addedDirectories.find(dir => dir.id === directoryId);
+    if (!directoryToDelete) return;
+
+    // 如果目录中有收藏的子文件夹，提示用户
+    const favoriteCount = directoryToDelete.subfolders.filter(sf => sf.isFavorite).length;
+    if (favoriteCount > 0) {
+      Modal.confirm({
+        title: '确定要删除这个目录吗？',
+        content: `目录"${directoryToDelete.name}"中还有 ${favoriteCount} 个收藏的子文件夹，删除后将无法恢复。`,
+        okText: '确定删除',
+        cancelText: '取消',
+        okType: 'danger',
+        onOk: () => {
+          performDeleteDirectory(directoryId);
+        },
+      });
+    } else {
+      // 没有收藏的子文件夹，直接删除
+      performDeleteDirectory(directoryId);
+    }
+  };
+
+  // 执行删除目录操作
+  const performDeleteDirectory = (directoryId: string) => {
+    const updatedDirectories = config.addedDirectories.filter(dir => dir.id !== directoryId);
+    
+    const updated = {
+      ...config,
+      addedDirectories: updatedDirectories,
+    };
+
+    setConfig(updated);
+    postMessage({ type: 'saveConfig', payload: updated });
+  };
+
   // 获取所有收藏的子文件夹
   const getFavoriteSubfolders = () => {
     const favorites: Array<{ name: string; uri: string; parentName: string }> = [];
@@ -373,32 +392,20 @@ export default function Home() {
           background-color: var(--vscode-list-hoverBackground) !important;
         }
         
-        /* 缩小折叠面板内容间距 */
-        .ant-collapse-content > .ant-collapse-content-box {
-          padding-top: 4px !important;
-        }
-        
-        /* 修改折叠面板标题右边距 */
-        .ant-collapse-header {
-          padding-right: 4px !important;
-          padding: 8px 4px !important;
-        }
       `}</style>
       <Header onBookmarkAdd={handleBookmarkAdd} onRepoAdd={handleRepoAdd} onFolderAdd={handleAdd} />
-      <Content style={{ padding: '4px 0' }}>
+      <Content style={{ padding: '8px' }}>
         <div className="drag-container">
           {/* 收藏区域 */}
           <div className="drag-item">
             <Collapse 
-              size="small"
               ghost
-              bordered={false}
               defaultActiveKey={['favorites']}
             >
               <Collapse.Panel 
                 key="favorites" 
                 header={
-                  <span style={{ color: 'var(--vscode-foreground)' }}>
+                  <span>
                     ⭐ 收藏 ({favoriteSubfolders.length})
                   </span>
                 }
@@ -489,9 +496,7 @@ export default function Home() {
               onDrop={(e) => handleDrop(e, index)}
             >
               <Collapse 
-                size="small"
                 ghost
-                bordered={false}
               >
                 <Collapse.Panel 
                   key={f.id}
@@ -502,101 +507,88 @@ export default function Home() {
                         alignItems: 'center', 
                         justifyContent: 'space-between', 
                         width: '100%',
+                        cursor: 'grab',
                       }}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragEnd={handleDragEnd}
+                      title="拖拽整个标题栏进行排序"
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ 
-                          color: 'var(--vscode-foreground)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          lineHeight: '20px',
-                          height: '20px'
-                        }}>{f.name}</span>
+                      <span style={{
+                        color: 'var(--vscode-sideBarSectionHeader-foreground)',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                      }}>
+                        {f.name} ({f.subfolders.length})
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                         <Button
                           type="text"
                           size="small"
-                          icon={<CodeOutlined style={{ fontSize: '14px' }}/>}
+                          icon={<CodeOutlined />}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleOpenTerminal(f.uri);
                           }}
                           style={{
-                            color: 'var(--vscode-foreground)',
+                            color: 'var(--vscode-sideBarSectionHeader-foreground)',
+                            opacity: 0.8,
+                            fontSize: '12px',
                             padding: '0',
                             width: '20px',
                             height: '20px',
                             minWidth: '20px',
-                            fontSize: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
                           }}
                           title="在此目录打开终端"
                         />
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<ReloadOutlined style={{ fontSize: '10px' }}/>}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRefreshDirectory(f.uri);
-                          }}
-                          style={{
-                            color: 'var(--vscode-foreground)',
-                            padding: '0',
-                            width: '20px',
-                            height: '20px',
-                            minWidth: '20px',
-                            fontSize: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                          title="刷新目录"
-                        />
-                        <div
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, index)}
-                          onDragEnd={handleDragEnd}
-                          style={{
-                            color: 'var(--vscode-foreground)',
-                            padding: '0',
-                            width: '20px',
-                            height: '20px',
-                            minWidth: '20px',
-                            fontSize: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: draggedIndex === index ? 'grabbing' : 'grab',
-                            opacity: draggedIndex === index ? 1 : 0.7,
-                            transition: 'opacity 0.2s ease',
-                            filter: draggedIndex === index ? 'brightness(1.2)' : 'none',
-                          }}
-                          title="拖拽排序"
-                          onMouseEnter={(e) => {
-                            if (draggedIndex !== index) {
-                              e.currentTarget.style.opacity = '1';
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (draggedIndex !== index) {
-                              e.currentTarget.style.opacity = '0.7';
-                            }
-                          }}
-                          onMouseDown={(e) => {
-                            e.currentTarget.style.cursor = 'grabbing';
-                          }}
-                          onMouseUp={(e) => {
-                            if (draggedIndex !== index) {
-                              e.currentTarget.style.cursor = 'grab';
-                            }
+                        <Dropdown
+                          placement="bottomRight"
+                          trigger={['click']}
+                          menu={{
+                            items: [
+                              {
+                                key: 'refresh',
+                                icon: <ReloadOutlined />,
+                                label: '刷新目录',
+                                onClick: (e: any) => {
+                                  e?.domEvent?.stopPropagation();
+                                  handleRefreshDirectory(f.uri);
+                                },
+                              },
+                              {
+                                type: 'divider' as const,
+                              },
+                              {
+                                key: 'delete',
+                                icon: <DeleteOutlined />,
+                                label: '删除目录',
+                                danger: true,
+                                onClick: (e: any) => {
+                                  e?.domEvent?.stopPropagation();
+                                  handleDeleteDirectory(f.id);
+                                },
+                              },
+                            ],
                           }}
                         >
-                          <BarsOutlined style={{ fontSize: '14px' }}/>
-                        </div>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<MoreOutlined style={{ fontSize: '14px', fontWeight: 700 }} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            style={{
+                              color: 'var(--vscode-foreground)',
+                              padding: '0',
+                              width: '20px',
+                              height: '20px',
+                              minWidth: '20px',
+                              fontSize: '12px',
+                            }}
+                            title="更多操作"
+                          />
+                        </Dropdown>
                       </div>
                     </div>
                   }
