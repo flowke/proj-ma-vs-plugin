@@ -691,6 +691,12 @@ export default function Home() {
           <span style={{ 
             color: 'var(--vscode-foreground)',
             fontSize: '14px',
+            lineHeight: '1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
           }}>
             ✕
           </span>

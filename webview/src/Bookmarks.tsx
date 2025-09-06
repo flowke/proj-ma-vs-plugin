@@ -1101,7 +1101,18 @@ export default function Bookmarks() {
           },
         }}
         closeIcon={
-          <span style={{ fontSize: '12px' }}>✕</span>
+          <span style={{ 
+            color: 'var(--vscode-foreground)',
+            fontSize: '14px',
+            lineHeight: '1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+            ✕
+          </span>
         }
       >
         <Form
@@ -1191,7 +1202,18 @@ export default function Bookmarks() {
           },
         }}
         closeIcon={
-          <span style={{ fontSize: '12px' }}>✕</span>
+          <span style={{ 
+            color: 'var(--vscode-foreground)',
+            fontSize: '14px',
+            lineHeight: '1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+            ✕
+          </span>
         }
       >
         <Form

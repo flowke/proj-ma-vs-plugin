@@ -333,7 +333,18 @@ export default function Repositories() {
           },
         }}
         closeIcon={
-          <span style={{ fontSize: '14px' }}>✕</span>
+          <span style={{ 
+            color: 'var(--vscode-foreground)',
+            fontSize: '14px',
+            lineHeight: '1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+            ✕
+          </span>
         }
       >
         <Form
