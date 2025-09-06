@@ -29,6 +29,40 @@ $font-size-xl: 16px;
 $transition-fast: 0.15s ease;
 $transition-normal: 0.2s ease;
 $transition-slow: 0.3s ease;
+$transition-height: 0.2s ease-in-out;
+
+// 透明度
+$opacity-hover: 0.9;
+$opacity-drag: 0.8;
+$opacity-ghost: 0.3;
+$opacity-placeholder: 0.8;
+
+// 阴影效果
+$shadow-dropdown: 0 4px 12px rgba(0, 0, 0, 0.3);
+$shadow-drag: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+// 层级管理
+$z-index-dropdown: 1000;
+$z-index-modal: 1000;
+$z-index-drag: 1000;
+
+// 变换效果
+$transform-drag-rotate: rotate(2deg);
+$transform-none: none;
+
+// 光标样式
+$cursor-grab: grab;
+$cursor-grabbing: grabbing;
+$cursor-pointer: pointer;
+
+// 图标和控件尺寸
+$icon-size-sm: 12px;
+$icon-size-md: 20px;
+$icon-size-lg: 24px;
+
+// 边框宽度
+$border-width-thin: 1px;
+$border-width-none: 0;
 
 // 混入（Mixins）
 @mixin button-base {

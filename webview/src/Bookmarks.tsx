@@ -153,9 +153,6 @@ function BookmarkCategoryComponent({
       onDragLeave={onCategoryDragLeave}
       onDrop={(e) => onCategoryDrop(e, category.id)}
       style={{
-        margin: '4px 0',
-        minHeight: '40px', // 确保有足够的拖放区域
-        padding: '4px',
       }}
     >
       <Collapse
@@ -195,7 +192,7 @@ function BookmarkCategoryComponent({
                   />
                 ) : (
                   <div style={{
-                    padding: '20px',
+                    padding: '10px',
                     textAlign: 'center',
                     color: 'var(--vscode-descriptionForeground)',
                     fontSize: '12px',
@@ -1002,10 +999,9 @@ export default function Bookmarks() {
       <Header onBookmarkAdd={handleAddBookmark} />
       
       <Content style={{ padding: '8px' }}>
-        <div style={{ marginBottom: '12px' }}>
+        <div style={{ marginBottom: '6px' }}>
           <h3 style={{ 
             color: 'var(--vscode-foreground)', 
-            margin: '0 0 8px 0', 
             fontSize: '14px',
             fontWeight: 500,
           }}>
@@ -1079,7 +1075,7 @@ export default function Bookmarks() {
           <div style={{ 
             color: 'var(--vscode-descriptionForeground)', 
             fontSize: '12px',
-            padding: '20px 0',
+            padding: '10px 0',
             textAlign: 'center',
           }}>
             暂无书签，点击右上角 + 号添加
