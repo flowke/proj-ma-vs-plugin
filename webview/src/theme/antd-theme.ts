@@ -142,6 +142,30 @@ export const antdTheme: ThemeConfig = {
       fontSize: fontSize.sm,
       zIndexPopup: zIndex.tooltip,
     },
+
+    // Radio组件配置
+    Radio: {
+      // 基础颜色
+      colorPrimary: vscodeColors.focusBorder,
+      colorBgContainer: 'transparent', 
+      colorBorder: 'transparent',
+      colorText: vscodeColors.foreground,
+      
+      // 选中状态颜色
+      colorTextDisabled: vscodeColors.disabledForeground,
+      
+      // Radio button 样式
+      buttonSolidCheckedBg: vscodeColors.activeBackground,
+      buttonSolidCheckedColor: vscodeColors.activeForeground,
+      
+      // 尺寸配置
+      radioSize: 14,
+      dotSize: 6,
+      
+      // 间距配置
+      marginXS: 0,
+      paddingXS: spacing.xs / 2, // 2px
+    },
   },
 };
 

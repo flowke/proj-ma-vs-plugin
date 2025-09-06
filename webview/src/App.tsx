@@ -174,46 +174,7 @@ export default function App({ children }: AppProps) {
           border: none !important;
         }
         
-        /* Dropdown 样式优化 */
-        .ant-dropdown {
-          background-color: ${vscodeColors.dropdownBackground} !important;
-          border: 1px solid ${vscodeColors.dropdownBorder} !important;
-          box-shadow: ${shadow.dropdown} !important;
-        }
-        
-        .ant-dropdown .ant-dropdown-menu {
-          background-color: ${vscodeColors.dropdownBackground} !important;
-          border: none !important;
-          box-shadow: none !important;
-        }
-        
-        .ant-dropdown .ant-dropdown-menu-item {
-          color: ${vscodeColors.dropdownForeground} !important;
-          padding: ${spacing.xs + 2}px ${spacing.md}px !important;
-          font-size: ${fontSize.md}px !important;
-        }
-        
-        .ant-dropdown .ant-dropdown-menu-item:hover {
-          background-color: ${vscodeColors.hoverBackground} !important;
-          color: ${vscodeColors.dropdownForeground} !important;
-        }
-        
-        .ant-dropdown .ant-dropdown-menu-item-danger {
-          color: ${vscodeColors.errorForeground} !important;
-        }
-        
-        .ant-dropdown .ant-dropdown-menu-item-danger:hover {
-          background-color: ${vscodeColors.errorBackground} !important;
-          color: ${vscodeColors.errorForeground} !important;
-        }
-        
-        .ant-dropdown .ant-dropdown-menu-item-divider {
-          background-color: ${vscodeColors.separator} !important;
-          border-color: ${vscodeColors.separator} !important;
-          margin: ${spacing.xs}px 0 !important;
-          height: 1px !important;
-        }
-        
+
         /* Select 下拉选择框样式 */
         .ant-select-dropdown {
           background-color: ${vscodeColors.dropdownBackground} !important;
@@ -239,11 +200,6 @@ export default function App({ children }: AppProps) {
           background-color: ${vscodeColors.hoverBackground} !important;
         }
         
-        /* Divider 分割线样式 */
-        .ant-divider-horizontal {
-          border-top-color: ${vscodeColors.separator} !important;
-          margin: ${spacing.sm}px 0 !important;
-        }
         
         /* Modal 紧凑样式 */
         .ant-modal .ant-modal-content {

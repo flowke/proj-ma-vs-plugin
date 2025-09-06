@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Collapse, Layout, List, Modal, Dropdown } from 'antd';
-import { StarOutlined, StarFilled, ReloadOutlined, BarsOutlined, CodeOutlined, FolderOpenOutlined, MoreOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Button, Collapse, Layout, List, Modal } from 'antd';
+import { StarOutlined, StarFilled, ReloadOutlined, BarsOutlined, CodeOutlined, FolderOpenOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router';
 import type { AddedDirectory, ProjectConfig } from './types';
 import { DEFAULT_CONFIG } from './types';
 import { postMessage, isVSCodeApiAvailable } from './vscode-api';
 import Header from './Header';
+import { MoreDropdown } from './components';
 
 const { Content } = Layout;
 
@@ -15,8 +16,52 @@ export default function Home() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [showEditorModal, setShowEditorModal] = useState(false);
   const [pendingEditorAction, setPendingEditorAction] = useState<{ folderUri: string; folderName: string } | null>(null);
+  const [favoritesExpanded, setFavoritesExpanded] = useState<boolean>(true);
+  const [directoryExpandedStates, setDirectoryExpandedStates] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
 
+
+  // Load favorites expanded state from localStorage
+  useEffect(() => {
+    try {
+      const savedState = localStorage.getItem('home-favorites-expanded');
+      if (savedState !== null) {
+        setFavoritesExpanded(JSON.parse(savedState));
+      }
+    } catch (e) {
+      console.warn('Failed to load favorites expanded state from localStorage:', e);
+    }
+  }, []);
+
+  // Save favorites expanded state to localStorage when it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('home-favorites-expanded', JSON.stringify(favoritesExpanded));
+    } catch (e) {
+      console.warn('Failed to save favorites expanded state to localStorage:', e);
+    }
+  }, [favoritesExpanded]);
+
+  // Load directory expanded states from localStorage
+  useEffect(() => {
+    try {
+      const savedStates = localStorage.getItem('home-directory-expanded-states');
+      if (savedStates !== null) {
+        setDirectoryExpandedStates(JSON.parse(savedStates));
+      }
+    } catch (e) {
+      console.warn('Failed to load directory expanded states from localStorage:', e);
+    }
+  }, []);
+
+  // Save directory expanded states to localStorage when they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('home-directory-expanded-states', JSON.stringify(directoryExpandedStates));
+    } catch (e) {
+      console.warn('Failed to save directory expanded states to localStorage:', e);
+    }
+  }, [directoryExpandedStates]);
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -361,6 +406,32 @@ export default function Home() {
 
   const favoriteSubfolders = getFavoriteSubfolders();
 
+  // Handle favorites collapse toggle
+  const handleFavoritesToggle = (activeKeys: string | string[]) => {
+    const keys = Array.isArray(activeKeys) ? activeKeys : [activeKeys];
+    setFavoritesExpanded(keys.includes('favorites'));
+  };
+
+  // Handle directory collapse toggle
+  const handleDirectoryToggle = (directoryId: string, activeKeys: string | string[]) => {
+    const keys = Array.isArray(activeKeys) ? activeKeys : [activeKeys];
+    const isExpanded = keys.includes(directoryId);
+    
+    setDirectoryExpandedStates(prev => ({
+      ...prev,
+      [directoryId]: isExpanded
+    }));
+  };
+
+  // Get active keys for directory collapse
+  const getDirectoryActiveKeys = (directoryId: string): string[] => {
+    // Default to expanded (true) if no state is saved
+    const isExpanded = directoryExpandedStates[directoryId] !== undefined 
+      ? directoryExpandedStates[directoryId] 
+      : true;
+    return isExpanded ? [directoryId] : [];
+  };
+
 
   return (
     <Layout style={{ minHeight: '100vh', backgroundColor: 'var(--vscode-sideBar-background)' }}>
@@ -400,12 +471,13 @@ export default function Home() {
           <div className="drag-item">
             <Collapse 
               ghost
-              defaultActiveKey={['favorites']}
+              activeKey={favoritesExpanded ? ['favorites'] : []}
+              onChange={handleFavoritesToggle}
             >
               <Collapse.Panel 
                 key="favorites" 
                 header={
-                  <span>
+                  <span style={{ userSelect: 'none' }}>
                     ⭐ 收藏 ({favoriteSubfolders.length})
                   </span>
                 }
@@ -497,6 +569,8 @@ export default function Home() {
             >
               <Collapse 
                 ghost
+                activeKey={getDirectoryActiveKeys(f.id)}
+                onChange={(activeKeys) => handleDirectoryToggle(f.id, activeKeys)}
               >
                 <Collapse.Panel 
                   key={f.id}
@@ -541,54 +615,32 @@ export default function Home() {
                           }}
                           title="在此目录打开终端"
                         />
-                        <Dropdown
-                          placement="bottomRight"
-                          trigger={['click']}
-                          menu={{
-                            items: [
-                              {
-                                key: 'refresh',
-                                icon: <ReloadOutlined />,
-                                label: '刷新目录',
-                                onClick: (e: any) => {
-                                  e?.domEvent?.stopPropagation();
-                                  handleRefreshDirectory(f.uri);
-                                },
+                        <MoreDropdown
+                          items={[
+                            {
+                              key: 'refresh',
+                              icon: <ReloadOutlined />,
+                              label: '刷新目录',
+                              onClick: (e: any) => {
+                                e?.domEvent?.stopPropagation();
+                                handleRefreshDirectory(f.uri);
                               },
-                              {
-                                type: 'divider' as const,
+                            },
+                            {
+                              type: 'divider' as const,
+                            },
+                            {
+                              key: 'delete',
+                              icon: <DeleteOutlined />,
+                              label: '删除目录',
+                              danger: true,
+                              onClick: (e: any) => {
+                                e?.domEvent?.stopPropagation();
+                                handleDeleteDirectory(f.id);
                               },
-                              {
-                                key: 'delete',
-                                icon: <DeleteOutlined />,
-                                label: '删除目录',
-                                danger: true,
-                                onClick: (e: any) => {
-                                  e?.domEvent?.stopPropagation();
-                                  handleDeleteDirectory(f.id);
-                                },
-                              },
-                            ],
-                          }}
-                        >
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<MoreOutlined style={{ fontSize: '14px', fontWeight: 700 }} />}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
-                            style={{
-                              color: 'var(--vscode-foreground)',
-                              padding: '0',
-                              width: '20px',
-                              height: '20px',
-                              minWidth: '20px',
-                              fontSize: '12px',
-                            }}
-                            title="更多操作"
-                          />
-                        </Dropdown>
+                            },
+                          ]}
+                        />
                       </div>
                     </div>
                   }

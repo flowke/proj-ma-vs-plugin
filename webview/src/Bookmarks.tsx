@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Layout, List, Modal, Form, Input, message, Spin, Popconfirm, Collapse, Select, Divider, Dropdown } from 'antd';
-import { DeleteOutlined, CopyOutlined, GlobalOutlined, ReloadOutlined, CaretRightOutlined, PlusOutlined, DownOutlined, RightOutlined, MoreOutlined } from '@ant-design/icons';
+import { Button, Layout, List, Modal, Form, Input, message, Spin, Popconfirm, Collapse, Select, Divider } from 'antd';
+import { DeleteOutlined, CopyOutlined, GlobalOutlined, ReloadOutlined, CaretRightOutlined, PlusOutlined, DownOutlined, RightOutlined, EditOutlined } from '@ant-design/icons';
 import type { BookmarkItem, BookmarkCategory, ProjectConfig } from './types';
 import { DEFAULT_CONFIG } from './types';
 import { postMessage, isVSCodeApiAvailable } from './vscode-api';
 import Header from './Header';
+import { MoreDropdown } from './components';
 
 const { Content } = Layout;
 
@@ -19,6 +20,7 @@ interface BookmarkCategoryComponentProps {
   onReorderBookmarks: (categoryId: string, bookmarks: BookmarkItem[]) => void;
   onQuickAdd: (categoryId: string) => void;
   onDeleteCategory: (categoryId: string) => void;
+  onRenameCategory: (categoryId: string, currentName: string) => void;
   onMoveBookmark: (bookmarkId: string, fromCategoryId: string, toCategoryId: string, toIndex: number) => void;
   draggedBookmark: { bookmarkId: string; categoryId: string } | null;
   dragOverCategory: string | null;
@@ -43,6 +45,7 @@ function BookmarkCategoryComponent({
   onReorderBookmarks,
   onQuickAdd,
   onDeleteCategory,
+  onRenameCategory,
   onMoveBookmark,
   draggedBookmark,
   dragOverCategory,
@@ -105,42 +108,32 @@ function BookmarkCategoryComponent({
           title="添加书签到此分类"
         />
         {!isDefaultCategory && (
-          <Dropdown
-            placement="bottomRight"
-            trigger={['click']}
-            menu={{
-              items: [
-                {
-                  key: 'delete',
-                  icon: <DeleteOutlined />,
-                  label: '删除分类',
-                  danger: true,
-                  onClick: (e: any) => {
-                    e?.domEvent?.stopPropagation();
-                    onDeleteCategory(category.id);
-                  },
+          <MoreDropdown
+            items={[
+              {
+                key: 'rename',
+                icon: <EditOutlined />,
+                label: '重命名分类',
+                onClick: (e: any) => {
+                  e?.domEvent?.stopPropagation();
+                  onRenameCategory && onRenameCategory(category.id, category.name);
                 },
-              ],
-            }}
-          >
-            <Button
-              type="text"
-              size="small"
-              icon={<MoreOutlined style={{ fontSize: '14px', fontWeight: 700 }} />}
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-              style={{
-                color: 'var(--vscode-foreground)',
-                padding: '0',
-                width: '20px',
-                height: '20px',
-                minWidth: '20px',
-                fontSize: '12px',
-              }}
-              title="更多操作"
-            />
-          </Dropdown>
+              },
+              {
+                type: 'divider' as const,
+              },
+              {
+                key: 'delete',
+                icon: <DeleteOutlined />,
+                label: '删除分类',
+                danger: true,
+                onClick: (e: any) => {
+                  e?.domEvent?.stopPropagation();
+                  onDeleteCategory(category.id);
+                },
+              },
+            ]}
+          />
         )}
       </div>
     </div>
@@ -373,60 +366,41 @@ function SortableBookmarkItem({
 
           {/* 操作按钮 */}
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <Dropdown
-              placement="bottomRight"
-              trigger={['click']}
-              menu={{
-                items: [
-                  {
-                    key: 'copy',
-                    icon: <CopyOutlined />,
-                    label: '复制链接',
-                    onClick: (e: any) => {
-                      e?.domEvent?.stopPropagation();
-                      onCopy(bookmark.url);
-                    },
+            <MoreDropdown
+              items={[
+                {
+                  key: 'copy',
+                  icon: <CopyOutlined />,
+                  label: '复制链接',
+                  onClick: (e: any) => {
+                    e?.domEvent?.stopPropagation();
+                    onCopy(bookmark.url);
                   },
-                  ...(!bookmark.isParsing ? [{
-                    key: 'reparse',
-                    icon: <ReloadOutlined />,
-                    label: '重新解析',
-                    onClick: (e: any) => {
-                      e?.domEvent?.stopPropagation();
-                      onReparse(bookmark);
-                    },
-                  }] : []),
-                  {
-                    type: 'divider' as const,
+                },
+                ...(!bookmark.isParsing ? [{
+                  key: 'reparse',
+                  icon: <ReloadOutlined />,
+                  label: '重新解析',
+                  onClick: (e: any) => {
+                    e?.domEvent?.stopPropagation();
+                    onReparse(bookmark);
                   },
-                  {
-                    key: 'delete',
-                    icon: <DeleteOutlined />,
-                    label: '删除书签',
-                    danger: true,
-                    onClick: (e: any) => {
-                      e?.domEvent?.stopPropagation();
-                      onDelete(bookmark.id);
-                    },
+                }] : []),
+                {
+                  type: 'divider' as const,
+                },
+                {
+                  key: 'delete',
+                  icon: <DeleteOutlined />,
+                  label: '删除书签',
+                  danger: true,
+                  onClick: (e: any) => {
+                    e?.domEvent?.stopPropagation();
+                    onDelete(bookmark.id);
                   },
-                ],
-              }}
-            >
-              <Button
-                type="text"
-                size="small"
-                icon={<MoreOutlined style={{ fontSize: '14px', fontWeight: 700 }} />}
-                style={{
-                  color: 'var(--vscode-foreground)',
-                  padding: '0',
-                  width: '20px',
-                  height: '20px',
-                  minWidth: '20px',
-                  fontSize: '12px',
-                }}
-                title="更多操作"
-              />
-            </Dropdown>
+                },
+              ]}
+            />
           </div>
         </div>
       </List.Item>
@@ -441,8 +415,11 @@ export default function Bookmarks() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renamingCategory, setRenamingCategory] = useState<{id: string, name: string} | null>(null);
   const [form] = Form.useForm();
   const [quickAddForm] = Form.useForm();
+  const [renameForm] = Form.useForm();
 
   // 拖拽状态管理
   const [draggedBookmark, setDraggedBookmark] = useState<{ bookmarkId: string; categoryId: string } | null>(null);
@@ -699,8 +676,15 @@ export default function Bookmarks() {
       setConfig(updatedConfig);
       postMessage({ type: 'saveConfig', payload: updatedConfig });
       
-      // 设置表单的 categoryId 为新创建的分类
-      form.setFieldsValue({ categoryId: newCategory.id });
+      // 使用setTimeout确保新分类被添加到配置后再设置表单值
+      setTimeout(() => {
+        // 设置表单的 categoryId 为新创建的分类
+        form.setFieldsValue({ categoryId: newCategory.id });
+        
+        // 手动触发form change事件以确保UI更新
+        form.getFieldInstance('categoryId')?.blur();
+        form.getFieldInstance('categoryId')?.focus();
+      }, 0);
       
       // 清空输入框
       setNewCategoryName('');
@@ -877,6 +861,13 @@ export default function Bookmarks() {
     setShowQuickAddModal(true);
   };
 
+  // 处理重命名分类
+  const handleRenameCategory = (categoryId: string, currentName: string) => {
+    setRenamingCategory({ id: categoryId, name: currentName });
+    setShowRenameModal(true);
+    renameForm.setFieldsValue({ categoryName: currentName });
+  };
+
   // 处理删除分类
   const handleDeleteCategory = (categoryId: string) => {
     const categoryToDelete = (config.bookmarkCategories || []).find(cat => cat.id === categoryId);
@@ -918,6 +909,50 @@ export default function Bookmarks() {
     setShowQuickAddModal(false);
     setSelectedCategoryId('');
     quickAddForm.resetFields();
+  };
+
+  // 处理取消重命名
+  const handleCancelRename = () => {
+    setShowRenameModal(false);
+    setRenamingCategory(null);
+    renameForm.resetFields();
+  };
+
+  // 处理提交重命名
+  const handleSubmitRename = async (values: { categoryName: string }) => {
+    if (!renamingCategory) return;
+
+    const newName = values.categoryName.trim();
+    if (!newName) {
+      message.error('分类名称不能为空');
+      return;
+    }
+
+    // 检查名称是否已存在
+    const existingCategory = (config.bookmarkCategories || []).find(
+      cat => cat.name === newName && cat.id !== renamingCategory.id
+    );
+    if (existingCategory) {
+      message.error('分类名称已存在');
+      return;
+    }
+
+    const updatedCategories = (config.bookmarkCategories || []).map(category =>
+      category.id === renamingCategory.id 
+        ? { ...category, name: newName }
+        : category
+    );
+
+    const updatedConfig = {
+      ...config,
+      bookmarkCategories: updatedCategories,
+    };
+
+    setConfig(updatedConfig);
+    postMessage({ type: 'saveConfig', payload: updatedConfig });
+    message.success('分类重命名成功');
+    
+    handleCancelRename();
   };
 
   const handleSubmitQuickAdd = async (values: { url: string }) => {
@@ -1026,6 +1061,7 @@ export default function Bookmarks() {
                   onReorderBookmarks={handleReorderBookmarks}
                   onQuickAdd={handleQuickAdd}
                   onDeleteCategory={handleDeleteCategory}
+                  onRenameCategory={handleRenameCategory}
                   onMoveBookmark={handleMoveBookmark}
                   draggedBookmark={draggedBookmark}
                   dragOverCategory={dragOverCategory}
@@ -1056,6 +1092,7 @@ export default function Bookmarks() {
                   onReorderBookmarks={handleReorderBookmarks}
                   onQuickAdd={handleQuickAdd}
                   onDeleteCategory={handleDeleteCategory}
+                  onRenameCategory={handleRenameCategory}
                   onMoveBookmark={handleMoveBookmark}
                   draggedBookmark={draggedBookmark}
                   dragOverCategory={dragOverCategory}
@@ -1259,6 +1296,74 @@ export default function Bookmarks() {
               style={{ fontSize: '12px', height: '28px', padding: '0 12px' }}
             >
               {loading ? '添加中...' : '添加'}
+            </Button>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* 重命名分类模态框 */}
+      <Modal
+        title="重命名分类"
+        open={showRenameModal}
+        onCancel={handleCancelRename}
+        footer={null}
+        width={300}
+        style={{ top: 40 }}
+        styles={{
+          mask: {
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          },
+        }}
+        closeIcon={
+          <span style={{ 
+            color: 'var(--vscode-foreground)',
+            fontSize: '14px',
+            lineHeight: '1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+            ✕
+          </span>
+        }
+      >
+        <Form
+          form={renameForm}
+          layout="vertical"
+          onFinish={handleSubmitRename}
+          style={{ margin: 0 }}
+        >
+          <Form.Item
+            label={<span style={{ fontSize: '12px', color: 'var(--vscode-foreground)' }}>分类名称</span>}
+            name="categoryName"
+            rules={[
+              { required: true, message: '请输入分类名称' },
+              { max: 50, message: '分类名称最多50个字符' },
+            ]}
+            style={{ marginBottom: '12px' }}
+          >
+            <Input
+              placeholder="输入分类名称"
+              style={{ fontSize: '12px', height: '28px' }}
+              autoFocus
+            />
+          </Form.Item>
+
+          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '8px' }}>
+            <Button
+              onClick={handleCancelRename}
+              style={{ fontSize: '12px', height: '28px', padding: '0 12px' }}
+            >
+              取消
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              style={{ fontSize: '12px', height: '28px', padding: '0 12px' }}
+            >
+              确定
             </Button>
           </div>
         </Form>

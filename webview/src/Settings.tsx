@@ -100,15 +100,25 @@ export default function Settings() {
   };
 
   return (
-    <div style={{ padding: '16px', height: '100vh' }}>
-      <div style={{ marginBottom: '16px' }}>
+    <div style={{ padding: '0', height: '100vh' }}>
+      <div style={{ marginBottom: '8px', marginLeft: '8px' }}>
         <Button 
           type="text" 
           icon={<ArrowLeftOutlined />} 
+          size='small'
           onClick={handleBack}
           style={{ 
             color: 'var(--vscode-foreground)',
-            padding: '4px 8px',
+            padding: '4px 0',
+            backgroundColor: 'transparent',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.borderColor = 'transparent';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.borderColor = 'transparent';
           }}
         >
           返回
@@ -119,8 +129,9 @@ export default function Settings() {
         level={3} 
         style={{ 
           color: 'var(--vscode-foreground)', 
-          marginBottom: '24px',
-          fontSize: '18px',
+          marginBottom: '12px',
+          fontSize: '16px',
+          padding: '0 8px',
         }}
       >
         设置
@@ -130,16 +141,17 @@ export default function Settings() {
         style={{
           backgroundColor: 'var(--vscode-editor-background)',
           borderColor: 'var(--vscode-panel-border)',
-          borderRadius: '6px',
+          borderRadius: '4px',
+          margin: '0 8px',
         }}
-        bodyStyle={{ padding: '16px' }}
+        bodyStyle={{ padding: '8px' }}
       >
         <Title 
           level={4} 
           style={{ 
             color: 'var(--vscode-foreground)', 
-            marginBottom: '16px',
-            fontSize: '16px',
+            marginBottom: '8px',
+            fontSize: '14px',
           }}
         >
           配置文件
@@ -149,13 +161,14 @@ export default function Settings() {
           style={{ 
             color: 'var(--vscode-descriptionForeground)', 
             display: 'block',
-            marginBottom: '16px',
+            marginBottom: '8px',
+            fontSize: '12px',
           }}
         >
           配置文件位置: ~/.proj-ma.json
         </Text>
 
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
           <Button
             icon={<FolderOpenOutlined />}
             onClick={handleOpenConfigLocation}
@@ -165,7 +178,7 @@ export default function Settings() {
               borderColor: 'var(--vscode-button-border)',
               color: 'var(--vscode-button-secondaryForeground)',
               textAlign: 'left',
-              height: '36px',
+              height: '28px',
             }}
           >
             打开配置文件所在位置
@@ -180,7 +193,7 @@ export default function Settings() {
               borderColor: 'var(--vscode-button-border)',
               color: 'var(--vscode-button-secondaryForeground)',
               textAlign: 'left',
-              height: '36px',
+              height: '28px',
             }}
           >
             打开配置文件
@@ -192,108 +205,96 @@ export default function Settings() {
         style={{
           backgroundColor: 'var(--vscode-editor-background)',
           borderColor: 'var(--vscode-panel-border)',
-          borderRadius: '6px',
-          marginTop: '16px',
+          borderRadius: '4px',
+          margin: '8px',
         }}
-        bodyStyle={{ padding: '16px' }}
+        bodyStyle={{ padding: '8px' }}
       >
         <Title 
           level={4} 
           style={{ 
             color: 'var(--vscode-foreground)', 
-            marginBottom: '16px',
-            fontSize: '16px',
+            marginBottom: '8px',
+            fontSize: '14px',
           }}
         >
-          <EditOutlined style={{ marginRight: '8px' }} />
+          <EditOutlined style={{ marginRight: '4px' }} />
           编辑器设置
         </Title>
         
-        <Text 
+        <div 
           style={{ 
             color: 'var(--vscode-descriptionForeground)', 
             display: 'block',
-            marginBottom: '16px',
+            marginBottom: '8px',
+            fontSize: '12px',
           }}
         >
           选择点击编辑器图标时使用的默认编辑器
-        </Text>
+        </div>
 
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <style>{`
-            .vscode-radio-group .ant-radio-wrapper {
-              color: var(--vscode-foreground) !important;
-              padding: 8px 12px !important;
-              margin: 0 !important;
-              width: 100% !important;
-              border-radius: 4px !important;
-              border: 1px solid transparent !important;
-              transition: all 0.2s ease !important;
-            }
-            
-            .vscode-radio-group .ant-radio-wrapper:hover {
-              background-color: var(--vscode-list-hoverBackground) !important;
-              border-color: var(--vscode-focusBorder) !important;
-            }
-            
-            .vscode-radio-group .ant-radio-wrapper-checked {
-              background-color: var(--vscode-list-activeSelectionBackground) !important;
-              border-color: var(--vscode-focusBorder) !important;
-              color: var(--vscode-list-activeSelectionForeground) !important;
-            }
-            
-            .vscode-radio-group .ant-radio {
-              border-color: var(--vscode-checkbox-border) !important;
-            }
-            
-            .vscode-radio-group .ant-radio-checked .ant-radio-inner {
-              border-color: var(--vscode-focusBorder) !important;
-              background-color: var(--vscode-focusBorder) !important;
-            }
-            
-            .vscode-radio-group .ant-radio-inner {
-              background-color: var(--vscode-checkbox-background) !important;
-              border-color: var(--vscode-checkbox-border) !important;
-            }
-            
-            .vscode-radio-group .ant-radio:hover .ant-radio-inner {
-              border-color: var(--vscode-focusBorder) !important;
-            }
-            
-            .vscode-radio-group .ant-radio-checked .ant-radio-inner::after {
-              background-color: var(--vscode-checkbox-foreground) !important;
-            }
-          `}</style>
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
           <Radio.Group 
             value={config.settings.defaultEditor} 
             onChange={(e) => handleEditorChange(e.target.value)}
-            className="vscode-radio-group"
-            style={{ width: '100%' }}
+            style={{ width: '100%', display: 'block' }}
           >
-            <Space direction="vertical" style={{ width: '100%', gap: '4px' }}>
-              <Radio 
-                value="vscode"
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <div
+                style={{ 
+                  width: '100%',
+                  padding: '2px 6px',
+                  borderRadius: '3px',
+                  border: '1px solid transparent',
+                  backgroundColor: config.settings.defaultEditor === 'vscode' ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent',
+                  color: config.settings.defaultEditor === 'vscode' ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-foreground)'
+                }}
               >
-                VS Code
-              </Radio>
-              <Radio 
-                value="cursor"
+                <Radio 
+                  value="vscode"
+                  style={{ 
+                    width: '100%',
+                    margin: 0,
+                    color: 'inherit'
+                  }}
+                >
+                  VS Code
+                </Radio>
+              </div>
+              <div
+                style={{ 
+                  width: '100%',
+                  padding: '2px 6px',
+                  borderRadius: '3px',
+                  border: '1px solid transparent',
+                  backgroundColor: config.settings.defaultEditor === 'cursor' ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent',
+                  color: config.settings.defaultEditor === 'cursor' ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-foreground)'
+                }}
               >
-                Cursor
-              </Radio>
-            </Space>
+                <Radio 
+                  value="cursor"
+                  style={{ 
+                    width: '100%',
+                    margin: 0,
+                    color: 'inherit'
+                  }}
+                >
+                  Cursor
+                </Radio>
+              </div>
+            </div>
           </Radio.Group>
 
           {config.settings.defaultEditor && (
             <>
-              <Divider style={{ margin: '12px 0', borderColor: 'var(--vscode-panel-border)' }} />
+              <Divider style={{ margin: '2px 0', borderColor: 'var(--vscode-panel-border)' }} />
               <Button
                 onClick={handleClearEditorSetting}
                 style={{
                   backgroundColor: 'var(--vscode-button-secondaryBackground)',
                   borderColor: 'var(--vscode-button-border)',
                   color: 'var(--vscode-button-secondaryForeground)',
-                  height: '32px',
+                  height: '24px',
                 }}
               >
                 清除设置（下次点击时重新选择）
