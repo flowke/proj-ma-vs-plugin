@@ -1,12 +1,36 @@
-node_modules
-webview/node_modules
-out/test
-src
-.vscode/**
-**/*.map
-**/*.ts
-**/*.tsx
-**/*.test.*
-**/*.spec.*
+# Source files
+src/**/*
+webview/src/**/*
+webview/node_modules/**/*
+
+# Development files
+tsconfig.json
+webview/tsconfig.json
+webview/vite.config.ts
+.vscode/**/*
+
+# Package files
+node_modules/**/*
+webview/package.json
+webview/package-lock.json
+
+# Build artifacts
+*.ts
+*.tsx
+*.map
+
+# Git and other
+.git/**/*
+.gitignore
 README.md
 
+# Documentation
+**/README.md
+webview/src/prd.md
+
+# Development and test files
+**/*.test.*
+**/*.spec.*
+
+# IDE files
+.DS_Store

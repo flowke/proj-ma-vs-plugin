@@ -9,6 +9,7 @@ export interface ProjectConfig {
   favorites: any[];
   recentlyOpened: any[];
   addedDirectories: any[];
+  repositories: any[];
   bookmarkCategories: any[];
   repositoryCategories: any[];
   settings: {
@@ -22,6 +23,7 @@ export const DEFAULT_CONFIG: ProjectConfig = {
   favorites: [],
   recentlyOpened: [],
   addedDirectories: [],
+  repositories: [],
   bookmarkCategories: [{
     id: 'default',
     name: '未分类',
