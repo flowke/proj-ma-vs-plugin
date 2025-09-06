@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { Button, Collapse, Layout, List, Modal } from 'antd';
-import { StarOutlined, StarFilled, ReloadOutlined, BarsOutlined, CodeOutlined, FolderOpenOutlined, DeleteOutlined } from '@ant-design/icons';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Button, Collapse, Layout, List, Modal, Form, Input, Select, Radio, message } from 'antd';
+import { StarOutlined, StarFilled, ReloadOutlined, BarsOutlined, CodeOutlined, FolderOpenOutlined, DeleteOutlined, ReadOutlined, FolderOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router';
+import { marked } from 'marked';
 import type { AddedDirectory, ProjectConfig } from './types';
 import { DEFAULT_CONFIG } from './types';
 import { postMessage, isVSCodeApiAvailable } from './vscode-api';
 import Header from './Header';
 import { MoreDropdown } from './components';
+import { useClone } from './hooks/useClone';
+import { parseRepositoryInput, validateRepositoryUrl } from './utils';
 
 const { Content } = Layout;
 
@@ -18,7 +21,33 @@ export default function Home() {
   const [pendingEditorAction, setPendingEditorAction] = useState<{ folderUri: string; folderName: string } | null>(null);
   const [favoritesExpanded, setFavoritesExpanded] = useState<boolean>(true);
   const [directoryExpandedStates, setDirectoryExpandedStates] = useState<Record<string, boolean>>({});
+  const [showReadmeModal, setShowReadmeModal] = useState(false);
+  const [readmeContent, setReadmeContent] = useState<string>('');
+  const [currentReadmeInfo, setCurrentReadmeInfo] = useState<{ uri: string; name: string } | null>(null);
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [cloneTargetDirectory, setCloneTargetDirectory] = useState<AddedDirectory | null>(null);
+  const [cloneForm] = Form.useForm();
   const navigate = useNavigate();
+
+  // 使用克隆 hook
+  const { cloneState, cloneRepository, resetCloneState } = useClone(config.addedDirectories);
+
+  // 配置 marked
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+  });
+
+  // 解析markdown内容
+  const parsedMarkdown = useMemo(() => {
+    if (!readmeContent) return '';
+    try {
+      return marked(readmeContent);
+    } catch (error) {
+      console.error('Markdown parsing error:', error);
+      return readmeContent;
+    }
+  }, [readmeContent]);
 
 
   // Load favorites expanded state from localStorage
@@ -85,6 +114,7 @@ export default function Home() {
           subfolders: payload.subfolders.map((sf: any) => ({
             ...sf,
             isFavorite: false,
+            hasReadme: sf.hasReadme || false,
           })),
           addedAt: new Date().toISOString(),
         };
@@ -120,6 +150,7 @@ export default function Home() {
                 const updatedSubfolders = payload.subfolders.map((sf: any) => ({
                   ...sf,
                   isFavorite: existingFavorites.has(sf.uri) || false,
+                  hasReadme: sf.hasReadme || false,
                 }));
                 
                 return {
@@ -134,6 +165,18 @@ export default function Home() {
           postMessage({ type: 'saveConfig', payload: updated });
           return updated;
         });
+      }
+
+      if (message?.type === 'readmeContentLoaded' && message.payload) {
+        const payload = message.payload as {
+          content: string;
+          uri: string;
+          name: string;
+        };
+        
+        setReadmeContent(payload.content);
+        setCurrentReadmeInfo({ uri: payload.uri, name: payload.name });
+        setShowReadmeModal(true);
       }
     };
     
@@ -228,6 +271,15 @@ export default function Home() {
     postMessage({ type: 'openTerminal', payload: { uri: directoryUri } });
   };
 
+  const handleOpenInFileManager = (folderUri: string) => {
+    if (!isVSCodeApiAvailable()) {
+      console.warn('VS Code API 不可用');
+      alert('VS Code API 不可用，请确保在 VS Code 扩展环境中运行');
+      return;
+    }
+    postMessage({ type: 'openInFileManager', payload: { uri: folderUri } });
+  };
+
   const handleOpenInEditor = (folderUri: string, folderName: string) => {
     if (!isVSCodeApiAvailable()) {
       console.warn('VS Code API 不可用');
@@ -283,6 +335,88 @@ export default function Home() {
   const handleCancelEditorSelection = () => {
     setShowEditorModal(false);
     setPendingEditorAction(null);
+  };
+
+  const handleViewReadme = (folderUri: string, folderName: string) => {
+    if (!isVSCodeApiAvailable()) {
+      console.warn('VS Code API 不可用');
+      alert('VS Code API 不可用，请确保在 VS Code 扩展环境中运行');
+      return;
+    }
+    postMessage({ 
+      type: 'readReadmeContent', 
+      payload: { 
+        uri: folderUri, 
+        name: folderName 
+      } 
+    });
+  };
+
+  const handleCloseReadmeModal = () => {
+    setShowReadmeModal(false);
+    setReadmeContent('');
+    setCurrentReadmeInfo(null);
+  };
+
+  // 处理克隆仓库
+  const handleCloneToDirectory = (directory: AddedDirectory) => {
+    setCloneTargetDirectory(directory);
+    setShowCloneModal(true);
+    cloneForm.resetFields();
+  };
+
+  // 取消克隆
+  const handleCancelClone = () => {
+    setShowCloneModal(false);
+    setCloneTargetDirectory(null);
+    resetCloneState();
+    cloneForm.resetFields();
+  };
+
+  // 提交克隆
+  const handleSubmitClone = async (values: { 
+    inputType: 'existing' | 'manual';
+    existingRepository?: string;
+    manualUrl?: string;
+    cloneType: 'https' | 'ssh';
+  }) => {
+    if (!cloneTargetDirectory) {
+      message.error('未选择目标目录');
+      return;
+    }
+
+    try {
+      let repositoryUrl = '';
+      
+      if (values.inputType === 'existing' && values.existingRepository) {
+        // 从已有仓库中选择
+        repositoryUrl = values.existingRepository;
+      } else if (values.inputType === 'manual' && values.manualUrl) {
+        // 手动输入仓库地址
+        const validation = validateRepositoryUrl(values.manualUrl);
+        if (!validation.isValid) {
+          message.error(validation.error);
+          return;
+        }
+        repositoryUrl = values.manualUrl;
+      } else {
+        message.error('请选择仓库或输入仓库地址');
+        return;
+      }
+
+      // 保存目标目录引用（关闭弹窗前）
+      const targetDir = cloneTargetDirectory;
+      
+      // 立即关闭弹窗，让克隆在后台进行
+      setShowCloneModal(false);
+      setCloneTargetDirectory(null);
+      cloneForm.resetFields();
+      
+      // 启动克隆（后台进行）
+      await cloneRepository(repositoryUrl, targetDir, values.cloneType);
+    } catch (error) {
+      console.error('Clone error:', error);
+    }
   };
 
   // 拖拽处理函数
@@ -389,7 +523,7 @@ export default function Home() {
 
   // 获取所有收藏的子文件夹
   const getFavoriteSubfolders = () => {
-    const favorites: Array<{ name: string; uri: string; parentName: string }> = [];
+    const favorites: Array<{ name: string; uri: string; parentName: string; hasReadme?: boolean }> = [];
     config.addedDirectories.forEach((dir) => {
       dir.subfolders.forEach((sf) => {
         if (sf.isFavorite) {
@@ -397,6 +531,7 @@ export default function Home() {
             name: sf.name,
             uri: sf.uri,
             parentName: dir.name,
+            hasReadme: sf.hasReadme,
           });
         }
       });
@@ -461,6 +596,156 @@ export default function Home() {
         .drag-item-drop-target .ant-collapse-content,
         .drag-item-drop-target .ant-collapse-header {
           background-color: var(--vscode-list-hoverBackground) !important;
+        }
+        
+        /* Markdown 样式 */
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3,
+        .markdown-content h4,
+        .markdown-content h5,
+        .markdown-content h6 {
+          color: var(--vscode-foreground);
+          margin-top: 24px;
+          margin-bottom: 16px;
+          font-weight: 600;
+          line-height: 1.25;
+        }
+        
+        .markdown-content h1 {
+          font-size: 2em;
+          border-bottom: 1px solid var(--vscode-panel-border);
+          padding-bottom: 0.3em;
+        }
+        
+        .markdown-content h2 {
+          font-size: 1.5em;
+          border-bottom: 1px solid var(--vscode-panel-border);
+          padding-bottom: 0.3em;
+        }
+        
+        .markdown-content h3 {
+          font-size: 1.25em;
+        }
+        
+        .markdown-content h4 {
+          font-size: 1em;
+        }
+        
+        .markdown-content h5 {
+          font-size: 0.875em;
+        }
+        
+        .markdown-content h6 {
+          font-size: 0.85em;
+          color: var(--vscode-descriptionForeground);
+        }
+        
+        .markdown-content p {
+          margin-top: 0;
+          margin-bottom: 16px;
+        }
+        
+        .markdown-content blockquote {
+          padding: 0 1em;
+          color: var(--vscode-descriptionForeground);
+          border-left: 0.25em solid var(--vscode-panel-border);
+          margin: 0 0 16px 0;
+        }
+        
+        .markdown-content blockquote > :first-child {
+          margin-top: 0;
+        }
+        
+        .markdown-content blockquote > :last-child {
+          margin-bottom: 0;
+        }
+        
+        .markdown-content ul,
+        .markdown-content ol {
+          padding-left: 2em;
+          margin-top: 0;
+          margin-bottom: 16px;
+        }
+        
+        .markdown-content li {
+          margin-bottom: 0.25em;
+        }
+        
+        .markdown-content code {
+          padding: 0.2em 0.4em;
+          margin: 0;
+          font-size: 85%;
+          background-color: var(--vscode-textCodeBlock-background);
+          border-radius: 6px;
+          font-family: var(--vscode-editor-font-family, "Consolas", "Monaco", "Courier New", monospace);
+        }
+        
+        .markdown-content pre {
+          padding: 16px;
+          overflow: auto;
+          font-size: 85%;
+          line-height: 1.45;
+          background-color: var(--vscode-textCodeBlock-background);
+          border-radius: 6px;
+          margin-bottom: 16px;
+        }
+        
+        .markdown-content pre code {
+          display: inline;
+          max-width: auto;
+          padding: 0;
+          margin: 0;
+          overflow: visible;
+          line-height: inherit;
+          word-wrap: normal;
+          background-color: transparent;
+          border: 0;
+        }
+        
+        .markdown-content table {
+          border-spacing: 0;
+          border-collapse: collapse;
+          margin-bottom: 16px;
+          width: 100%;
+        }
+        
+        .markdown-content table th,
+        .markdown-content table td {
+          padding: 6px 13px;
+          border: 1px solid var(--vscode-panel-border);
+        }
+        
+        .markdown-content table th {
+          font-weight: 600;
+          background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .markdown-content table tr:nth-child(2n) {
+          background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .markdown-content hr {
+          height: 0.25em;
+          padding: 0;
+          margin: 24px 0;
+          background-color: var(--vscode-panel-border);
+          border: 0;
+        }
+        
+        .markdown-content a {
+          color: var(--vscode-textLink-foreground);
+          text-decoration: none;
+        }
+        
+        .markdown-content a:hover {
+          color: var(--vscode-textLink-activeForeground);
+          text-decoration: underline;
+        }
+        
+        .markdown-content img {
+          max-width: 100%;
+          height: auto;
         }
         
       `}</style>
@@ -536,6 +821,28 @@ export default function Home() {
                             }}
                             title="在编辑器中打开"
                           />
+                          {/* 如果有README文件，显示ReadOutlined图标 */}
+                          {favoriteSubfolders.find(fav => fav.uri === item.uri)?.hasReadme && (
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<ReadOutlined />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewReadme(item.uri, item.name);
+                              }}
+                              style={{
+                                color: 'var(--vscode-foreground)',
+                                padding: '0',
+                                width: '20px',
+                                height: '20px',
+                                minWidth: '20px',
+                                fontSize: '12px',
+                                marginLeft: '4px',
+                              }}
+                              title="查看README"
+                            />
+                          )}
                         </div>
                       </List.Item>
                     )}
@@ -618,6 +925,24 @@ export default function Home() {
                         <MoreDropdown
                           items={[
                             {
+                              key: 'open',
+                              icon: <FolderOutlined />,
+                              label: '打开目录',
+                              onClick: (e: any) => {
+                                e?.domEvent?.stopPropagation();
+                                handleOpenInFileManager(f.uri);
+                              },
+                            },
+                            {
+                              key: 'clone',
+                              icon: <DownloadOutlined />,
+                              label: '克隆仓库',
+                              onClick: (e: any) => {
+                                e?.domEvent?.stopPropagation();
+                                handleCloneToDirectory(f);
+                              },
+                            },
+                            {
                               key: 'refresh',
                               icon: <ReloadOutlined />,
                               label: '刷新目录',
@@ -697,6 +1022,28 @@ export default function Home() {
                             }}
                             title="在编辑器中打开"
                           />
+                          {/* 如果有README文件，显示ReadOutlined图标 */}
+                          {sf.hasReadme && (
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<ReadOutlined />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewReadme(sf.uri, sf.name);
+                              }}
+                              style={{
+                                color: 'var(--vscode-foreground)',
+                                padding: '0',
+                                width: '20px',
+                                height: '20px',
+                                minWidth: '20px',
+                                fontSize: '12px',
+                                marginLeft: '4px',
+                              }}
+                              title="查看README"
+                            />
+                          )}
                         </div>
                       </List.Item>
                     )}
@@ -803,6 +1150,221 @@ export default function Home() {
             选择将被保存为默认设置
           </p>
         </div>
+      </Modal>
+
+      {/* README查看模态框 */}
+      <Modal
+        title={`README - ${currentReadmeInfo?.name || ''}`}
+        open={showReadmeModal}
+        onCancel={handleCloseReadmeModal}
+        footer={null}
+        centered
+        width={800}
+        style={{
+          '--ant-modal-bg': 'var(--vscode-editor-background)',
+          '--ant-modal-content-bg': 'var(--vscode-editor-background)',
+        } as React.CSSProperties}
+        styles={{
+          content: {
+            backgroundColor: 'var(--vscode-editor-background)',
+            color: 'var(--vscode-foreground)',
+            padding: '16px',
+            maxHeight: '70vh',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          },
+          header: {
+            backgroundColor: 'var(--vscode-editor-background)',
+            borderBottom: '1px solid var(--vscode-panel-border)',
+            padding: '12px 16px',
+          },
+          body: {
+            padding: '8px 0',
+            flex: 1,
+            overflow: 'auto',
+          },
+          mask: {
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          },
+        }}
+        closeIcon={
+          <span style={{ 
+            color: 'var(--vscode-foreground)',
+            fontSize: '14px',
+            lineHeight: '1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+            ✕
+          </span>
+        }
+      >
+        <div 
+          className="markdown-content"
+          style={{ 
+            maxHeight: '60vh', 
+            overflow: 'auto',
+            padding: '16px',
+            backgroundColor: 'var(--vscode-editor-background)',
+            color: 'var(--vscode-foreground)',
+            fontSize: '14px',
+            lineHeight: '1.6',
+          }}
+          dangerouslySetInnerHTML={{ 
+            __html: parsedMarkdown || '加载中...' 
+          }}
+        />
+      </Modal>
+
+      {/* 克隆仓库模态框 */}
+      <Modal
+        title={`克隆仓库到 - ${cloneTargetDirectory?.name || ''}`}
+        open={showCloneModal}
+        onCancel={handleCancelClone}
+        footer={null}
+        width={500}
+        style={{ top: 40 }}
+        styles={{
+          mask: {
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          },
+        }}
+        closeIcon={
+          <span style={{ 
+            color: 'var(--vscode-foreground)',
+            fontSize: '14px',
+            lineHeight: '1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+            ✕
+          </span>
+        }
+      >
+        <Form
+          form={cloneForm}
+          layout="vertical"
+          onFinish={handleSubmitClone}
+          initialValues={{
+            inputType: 'existing',
+            cloneType: 'https'
+          }}
+          style={{ margin: 0 }}
+        >
+          <div style={{ 
+            marginBottom: '16px', 
+            padding: '8px 12px', 
+            backgroundColor: 'var(--vscode-list-hoverBackground)',
+            borderRadius: '4px',
+            fontSize: '12px',
+            color: 'var(--vscode-foreground)',
+            border: '1px solid var(--vscode-panel-border)',
+          }}>
+            <strong>目标目录:</strong> {cloneTargetDirectory?.name}
+          </div>
+
+          <Form.Item
+            label={<span style={{ fontSize: '12px', color: 'var(--vscode-foreground)' }}>仓库来源</span>}
+            name="inputType"
+            style={{ marginBottom: '12px' }}
+          >
+            <Radio.Group style={{ fontSize: '12px' }}>
+              <Radio value="existing">从已有仓库中选择</Radio>
+              <Radio value="manual">手动输入仓库地址</Radio>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.inputType !== currentValues.inputType}>
+            {({ getFieldValue }) => {
+              const inputType = getFieldValue('inputType');
+              
+              if (inputType === 'existing') {
+                return (
+                  <Form.Item
+                    label={<span style={{ fontSize: '12px', color: 'var(--vscode-foreground)' }}>选择仓库</span>}
+                    name="existingRepository"
+                    rules={[{ required: true, message: '请选择一个仓库' }]}
+                    style={{ marginBottom: '12px' }}
+                  >
+                    <Select
+                      placeholder="选择已有仓库"
+                      style={{ fontSize: '12px' }}
+                      showSearch
+                      optionFilterProp="children"
+                    >
+                      {(config.repositoryCategories || []).flatMap(category =>
+                        category.repositories.map(repo => (
+                          <Select.Option key={repo.id} value={repo.url}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>
+                                [{(repo.provider || 'other').toUpperCase()}]
+                              </span>
+                              <span>{repo.name}</span>
+                            </div>
+                          </Select.Option>
+                        ))
+                      )}
+                    </Select>
+                  </Form.Item>
+                );
+              } else {
+                return (
+                  <Form.Item
+                    label={<span style={{ fontSize: '12px', color: 'var(--vscode-foreground)' }}>仓库地址</span>}
+                    name="manualUrl"
+                    rules={[{ required: true, message: '请输入仓库地址' }]}
+                    style={{ marginBottom: '12px' }}
+                  >
+                    <Input.TextArea
+                      placeholder={`支持以下格式：
+• https://github.com/xxx/xxx
+• https://github.com/xxx/xxx.git  
+• git@github.com:xxx/xxx.git`}
+                      style={{ fontSize: '12px', minHeight: '80px' }}
+                      autoSize={{ minRows: 3, maxRows: 5 }}
+                    />
+                  </Form.Item>
+                );
+              }
+            }}
+          </Form.Item>
+
+          <Form.Item
+            label={<span style={{ fontSize: '12px', color: 'var(--vscode-foreground)' }}>克隆方式</span>}
+            name="cloneType"
+            style={{ marginBottom: '16px' }}
+          >
+            <Radio.Group style={{ fontSize: '12px' }}>
+              <Radio value="https">HTTPS</Radio>
+              <Radio value="ssh">SSH</Radio>
+            </Radio.Group>
+          </Form.Item>
+
+          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '8px' }}>
+            <Button
+              onClick={handleCancelClone}
+              style={{ fontSize: '12px', height: '28px', padding: '0 12px' }}
+            >
+              取消
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={cloneState.isCloning}
+              disabled={cloneState.isCloning}
+              style={{ fontSize: '12px', height: '28px', padding: '0 12px' }}
+            >
+              {cloneState.isCloning ? '克隆中...' : '开始克隆'}
+            </Button>
+          </div>
+        </Form>
       </Modal>
     </Layout>
   );

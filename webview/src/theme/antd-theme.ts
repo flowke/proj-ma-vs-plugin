@@ -147,8 +147,8 @@ export const antdTheme: ThemeConfig = {
     Radio: {
       // 基础颜色
       colorPrimary: vscodeColors.focusBorder,
-      colorBgContainer: 'transparent', 
-      colorBorder: 'transparent',
+      colorBgContainer: vscodeColors.inputBackground,
+      colorBorder: vscodeColors.inputBorder,
       colorText: vscodeColors.foreground,
       
       // 选中状态颜色
@@ -158,13 +158,25 @@ export const antdTheme: ThemeConfig = {
       buttonSolidCheckedBg: vscodeColors.activeBackground,
       buttonSolidCheckedColor: vscodeColors.activeForeground,
       
+      // 交互状态颜色
+      colorBorderSecondary: vscodeColors.inputBorder,  // 默认边框
+      colorPrimaryHover: vscodeColors.focusBorder,     // hover状态
+      colorPrimaryActive: vscodeColors.focusBorder,    // 激活状态
+      
+      // 圆圈内部样式
+      dotColorDisabled: vscodeColors.disabledForeground,
+      
       // 尺寸配置
       radioSize: 14,
       dotSize: 6,
       
       // 间距配置
-      marginXS: 0,
-      paddingXS: spacing.xs / 2, // 2px
+      marginXS: spacing.sm, // 8px - 增加单选框之间的间距
+      paddingXS: spacing.xs, // 4px - 增加内边距
+      
+      // 确保边框可见性
+      lineWidth: 1,
+      lineType: 'solid',
     },
   },
 };

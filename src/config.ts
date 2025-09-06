@@ -10,7 +10,7 @@ export interface ProjectConfig {
   recentlyOpened: any[];
   addedDirectories: any[];
   bookmarkCategories: any[];
-  repositories: any[];
+  repositoryCategories: any[];
   settings: {
     maxRecentItems: number;
     [key: string]: any;
@@ -29,7 +29,13 @@ export const DEFAULT_CONFIG: ProjectConfig = {
     bookmarks: [],
     createdAt: new Date().toISOString(),
   }],
-  repositories: [],
+  repositoryCategories: [{
+    id: 'default-repo',
+    name: '未分类',
+    collapsed: false,
+    repositories: [],
+    createdAt: new Date().toISOString(),
+  }],
   settings: {
     maxRecentItems: 20,
   },

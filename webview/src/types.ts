@@ -15,8 +15,8 @@ export interface ProjectConfig {
   // 网页书签分类
   bookmarkCategories: BookmarkCategory[];
   
-  // 代码仓库
-  repositories: RepositoryItem[];
+  // 代码仓库分类
+  repositoryCategories: RepositoryCategory[];
   
   // 设置项
   settings: {
@@ -59,6 +59,7 @@ export interface Subfolder {
   name: string;
   uri: string;
   isFavorite?: boolean;
+  hasReadme?: boolean;
 }
 
 export interface BookmarkItem {
@@ -87,6 +88,19 @@ export interface RepositoryItem {
   description?: string;
   addedAt: string; // ISO string
   tags?: string[];
+  // 克隆地址
+  cloneUrls?: {
+    https?: string;
+    ssh?: string;
+  };
+}
+
+export interface RepositoryCategory {
+  id: string;
+  name: string;
+  collapsed?: boolean; // 是否折叠，默认展开
+  repositories: RepositoryItem[];
+  createdAt: string; // ISO string
 }
 
 // VS Code API 类型
@@ -94,7 +108,7 @@ export type VSCodeApi = { postMessage: (message: any) => void } | undefined;
 
 // 消息类型
 export interface VSCodeMessage {
-  type: 'webviewReady' | 'pickFolder' | 'openConfigLocation' | 'openConfigFile' | 'saveConfig' | 'loadConfig' | 'toggleFavorite' | 'refreshDirectory' | 'directoryRefreshed' | 'openTerminal' | 'openInEditor' | 'openUrl' | 'addBookmark' | 'bookmarkAdded' | 'createBookmarkQuick' | 'bookmarkCreated' | 'parseBookmarkInfo' | 'bookmarkInfoParsed' | 'bookmarkUpdated' | 'reparseBookmark' | 'bookmarkReparsing' | 'createBookmarkCategory' | 'bookmarkCategoryCreated' | 'updateBookmarkCategories' | 'bookmarkCategoriesUpdated';
+  type: 'webviewReady' | 'pickFolder' | 'openConfigLocation' | 'openConfigFile' | 'saveConfig' | 'loadConfig' | 'toggleFavorite' | 'refreshDirectory' | 'directoryRefreshed' | 'openTerminal' | 'openInEditor' | 'openUrl' | 'addBookmark' | 'bookmarkAdded' | 'createBookmarkQuick' | 'bookmarkCreated' | 'parseBookmarkInfo' | 'bookmarkInfoParsed' | 'bookmarkUpdated' | 'reparseBookmark' | 'bookmarkReparsing' | 'createBookmarkCategory' | 'bookmarkCategoryCreated' | 'updateBookmarkCategories' | 'bookmarkCategoriesUpdated' | 'readReadmeContent' | 'readmeContentLoaded';
   payload?: any;
 }
 
@@ -111,7 +125,13 @@ export const DEFAULT_CONFIG: ProjectConfig = {
     bookmarks: [],
     createdAt: new Date().toISOString(),
   }],
-  repositories: [],
+  repositoryCategories: [{
+    id: 'default-repo',
+    name: '未分类',
+    collapsed: false,
+    repositories: [],
+    createdAt: new Date().toISOString(),
+  }],
   settings: {
     maxRecentItems: 20,
   },

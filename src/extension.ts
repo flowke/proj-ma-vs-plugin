@@ -499,6 +499,36 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       return;
     }
     
+    if (kind === 'selectDirectory') {
+      const selection = await vscode.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectFiles: false,
+        canSelectMany: false,
+        openLabel: '选择目录',
+        title: '选择仓库克隆目录'
+      });
+      
+      if (!selection || selection.length === 0) {
+        return;
+      }
+      
+      const folderUri = selection[0];
+      const folderName = path.basename(folderUri.fsPath);
+      
+      await webview.postMessage({
+        type: 'directorySelected',
+        payload: {
+          directory: {
+            name: folderName,
+            uri: folderUri.toString(), // 使用 URI 格式保持一致
+            path: folderUri.fsPath,    // 也提供文件系统路径供克隆使用
+          },
+          cloneInfo: message.payload?.cloneInfo // 传递克隆信息
+        },
+      });
+      return;
+    }
+    
     if (kind === 'pickFolder') {
       const selection = await vscode.window.showOpenDialog({
         canSelectFolders: true,
@@ -511,12 +541,32 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       }
       const folderUri = selection[0];
       const entries = await vscode.workspace.fs.readDirectory(folderUri);
-      const subfolders = entries
-        .filter(([, type]) => type === vscode.FileType.Directory)
-        .map(([name]) => {
-          const childUri = vscode.Uri.joinPath(folderUri, name);
-          return { name, uri: childUri.toString() };
-        });
+      const subfolders = await Promise.all(
+        entries
+          .filter(([, type]) => type === vscode.FileType.Directory)
+          .map(async ([name]) => {
+            const childUri = vscode.Uri.joinPath(folderUri, name);
+            
+            // 检查子文件夹是否包含README.md文件
+            let hasReadme = false;
+            try {
+              const childEntries = await vscode.workspace.fs.readDirectory(childUri);
+              hasReadme = childEntries.some(([childName, childType]) => 
+                childType === vscode.FileType.File && 
+                childName.toLowerCase() === 'readme.md'
+              );
+            } catch (error) {
+              // 如果无法读取子文件夹，默认没有README
+              hasReadme = false;
+            }
+            
+            return { 
+              name, 
+              uri: childUri.toString(),
+              hasReadme 
+            };
+          })
+      );
       const folderName = path.basename(folderUri.fsPath);
       await webview.postMessage({
         type: 'pickedFolder',
@@ -550,12 +600,32 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
         }
         
         const entries = await vscode.workspace.fs.readDirectory(folderUri);
-        const subfolders = entries
-          .filter(([, type]) => type === vscode.FileType.Directory)
-          .map(([name]) => {
-            const childUri = vscode.Uri.joinPath(folderUri, name);
-            return { name, uri: childUri.toString() };
-          });
+        const subfolders = await Promise.all(
+          entries
+            .filter(([, type]) => type === vscode.FileType.Directory)
+            .map(async ([name]) => {
+              const childUri = vscode.Uri.joinPath(folderUri, name);
+              
+              // 检查子文件夹是否包含README.md文件
+              let hasReadme = false;
+              try {
+                const childEntries = await vscode.workspace.fs.readDirectory(childUri);
+                hasReadme = childEntries.some(([childName, childType]) => 
+                  childType === vscode.FileType.File && 
+                  childName.toLowerCase() === 'readme.md'
+                );
+              } catch (error) {
+                // 如果无法读取子文件夹，默认没有README
+                hasReadme = false;
+              }
+              
+              return { 
+                name, 
+                uri: childUri.toString(),
+                hasReadme 
+              };
+            })
+        );
         
         await webview.postMessage({
           type: 'directoryRefreshed',
@@ -600,6 +670,35 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       } catch (error) {
         console.error('[Extension] Error opening terminal:', error);
         vscode.window.showErrorMessage(`打开终端失败: ${error}`);
+      }
+      return;
+    }
+    
+    if (kind === 'openInFileManager') {
+      const directoryUri = message.payload?.uri;
+      if (!directoryUri) {
+        console.error('[Extension] No directory URI provided for file manager');
+        return;
+      }
+      
+      try {
+        const folderUri = vscode.Uri.parse(directoryUri);
+        
+        // 检查目录是否存在
+        try {
+          await vscode.workspace.fs.stat(folderUri);
+        } catch (statError) {
+          console.warn('[Extension] Directory no longer exists:', folderUri.fsPath);
+          vscode.window.showWarningMessage(`目录不存在: ${folderUri.fsPath}`);
+          return;
+        }
+        
+        // 在文件管理器中显示目录
+        await vscode.commands.executeCommand('revealFileInOS', folderUri);
+        
+      } catch (error) {
+        console.error('[Extension] Error opening file manager:', error);
+        vscode.window.showErrorMessage(`打开文件管理器失败: ${error}`);
       }
       return;
     }
@@ -806,6 +905,222 @@ function setupWebviewMessaging(webview: vscode.Webview, context: vscode.Extensio
       } catch (error) {
         console.error('[Extension] Error opening URL:', error);
         vscode.window.showErrorMessage(`打开链接失败: ${error}`);
+      }
+      return;
+    }
+    
+    if (kind === 'readReadmeContent') {
+      const folderUri = message.payload?.uri;
+      const folderName = message.payload?.name;
+      
+      if (!folderUri) {
+        console.error('[Extension] No folder URI provided for readReadmeContent');
+        return;
+      }
+      
+      try {
+        const parsedUri = vscode.Uri.parse(folderUri);
+        const readmeUri = vscode.Uri.joinPath(parsedUri, 'README.md');
+        
+        // 检查README.md文件是否存在
+        try {
+          await vscode.workspace.fs.stat(readmeUri);
+        } catch (statError) {
+          console.warn('[Extension] README.md not found:', readmeUri.fsPath);
+          await webview.postMessage({
+            type: 'readmeContentLoaded',
+            payload: {
+              content: 'README.md 文件不存在或无法访问',
+              uri: folderUri,
+              name: folderName,
+            },
+          });
+          return;
+        }
+        
+        // 读取README.md文件内容
+        const readmeBytes = await vscode.workspace.fs.readFile(readmeUri);
+        const readmeContent = Buffer.from(readmeBytes).toString('utf8');
+        
+        await webview.postMessage({
+          type: 'readmeContentLoaded',
+          payload: {
+            content: readmeContent,
+            uri: folderUri,
+            name: folderName,
+          },
+        });
+        
+      } catch (error) {
+        console.error('[Extension] Error reading README content:', error);
+        await webview.postMessage({
+          type: 'readmeContentLoaded',
+          payload: {
+            content: `读取README失败: ${error}`,
+            uri: folderUri,
+            name: folderName,
+          },
+        });
+      }
+      return;
+    }
+    
+    if (kind === 'cloneRepository') {
+      const { url, name, cloneType, targetDirectory } = message.payload;
+      
+      try {
+        console.log('[Extension] Clone target directory path:', targetDirectory);
+        
+        // 创建输出通道
+        const outputChannel = vscode.window.createOutputChannel(`克隆: ${name}`);
+        outputChannel.show(true);
+        outputChannel.appendLine(`开始克隆仓库: ${name}`);
+        outputChannel.appendLine(`仓库地址: ${url}`);
+        outputChannel.appendLine(`目标目录: ${targetDirectory}`);
+        outputChannel.appendLine(`克隆类型: ${cloneType.toUpperCase()}`);
+
+        // 验证父目录是否存在
+        try {
+          const targetUri = vscode.Uri.file(targetDirectory);
+          await vscode.workspace.fs.stat(targetUri);
+          outputChannel.appendLine(`✅ 父目录存在: ${targetDirectory}`);
+        } catch (statError) {
+          outputChannel.appendLine(`❌ 父目录不存在: ${targetDirectory}`);
+          throw new Error(`目标目录不存在: ${targetDirectory}`);
+        }
+
+        // 提取仓库名称（从URL中获取）
+        const repoName = path.basename(url, '.git');
+        const repoPath = path.join(targetDirectory, repoName);
+        outputChannel.appendLine(`预期目标路径: ${repoPath}`);
+        
+        // 检查是否已存在同名文件夹
+        try {
+          const repoUri = vscode.Uri.file(repoPath);
+          await vscode.workspace.fs.stat(repoUri);
+          // 如果到这里说明文件夹已存在
+          outputChannel.appendLine(`⚠️ 警告：目标位置已存在文件夹 "${repoName}"`);
+          outputChannel.appendLine('Git将尝试克隆到此位置，如果是Git仓库可能会失败');
+        } catch (statError) {
+          // 文件夹不存在，正常情况
+          outputChannel.appendLine(`✅ 目标位置可用`);
+        }
+        
+        outputChannel.appendLine('---');
+        
+        // 发送克隆开始消息
+        await webview.postMessage({
+          type: 'cloneStarted',
+          payload: {
+            repository: name,
+            directory: targetDirectory,
+            cloneType: cloneType
+          }
+        });
+
+        // 在后台执行 git clone，添加 --progress 参数显示详细进度
+        const childProcess = spawn('git', ['clone', '--progress', url], {
+          cwd: targetDirectory,
+          stdio: 'pipe',
+          shell: false,
+        });
+
+        let hasOutput = false;
+
+        // 处理标准输出
+        childProcess.stdout?.on('data', (data: Buffer) => {
+          const output = data.toString();
+          hasOutput = true;
+          outputChannel.append(output);
+          console.log('[Extension] Git clone stdout:', output);
+        });
+
+        // 处理错误输出（git clone的进度信息主要在stderr）
+        childProcess.stderr?.on('data', (data: Buffer) => {
+          const output = data.toString();
+          hasOutput = true;
+          outputChannel.append(output);
+          console.log('[Extension] Git clone stderr:', output);
+        });
+
+        // 处理进程结束
+        childProcess.on('close', async (code: number) => {
+          const success = code === 0;
+          
+          outputChannel.appendLine('---');
+          outputChannel.appendLine(`进程结束，退出代码: ${code}`);
+          
+          if (!hasOutput && code !== 0) {
+            outputChannel.appendLine('⚠️ 没有收到任何输出信息');
+          }
+          
+          if (success) {
+            outputChannel.appendLine('✅ 克隆完成！');
+            vscode.window.showInformationMessage(`仓库 "${name}" 克隆成功！`);
+          } else {
+            // 根据退出代码提供更详细的错误信息
+            let errorDetail = '';
+            switch (code) {
+              case 128:
+                errorDetail = ' (可能是仓库地址错误、网络问题或目标目录已存在同名文件夹)';
+                break;
+              case 129:
+                errorDetail = ' (Git命令使用错误)';
+                break;
+              default:
+                errorDetail = '';
+            }
+            
+            outputChannel.appendLine(`❌ 克隆失败，退出代码: ${code}${errorDetail}`);
+            vscode.window.showErrorMessage(`仓库 "${name}" 克隆失败，退出代码: ${code}${errorDetail}`);
+          }
+
+          // 发送克隆完成消息
+          await webview.postMessage({
+            type: 'cloneCompleted',
+            payload: {
+              repository: name,
+              directory: targetDirectory,
+              success: success,
+              exitCode: code,
+              hasOutput: hasOutput
+            }
+          });
+        });
+
+        // 处理进程错误
+        childProcess.on('error', async (error: Error) => {
+          outputChannel.appendLine('---');
+          outputChannel.appendLine(`❌ 进程错误: ${error.message}`);
+          console.error('[Extension] Git clone process error:', error);
+          vscode.window.showErrorMessage(`克隆进程错误: ${error.message}`);
+          
+          // 发送克隆失败消息
+          await webview.postMessage({
+            type: 'cloneCompleted',
+            payload: {
+              repository: name,
+              directory: targetDirectory,
+              success: false,
+              error: error.message
+            }
+          });
+        });
+        
+      } catch (error) {
+        console.error('[Extension] Error starting clone process:', error);
+        vscode.window.showErrorMessage(`启动克隆失败: ${error}`);
+        
+        // 发送克隆失败消息
+        await webview.postMessage({
+          type: 'cloneCompleted',
+          payload: {
+            repository: name,
+            directory: targetDirectory,
+            success: false,
+            error: error instanceof Error ? error.message : String(error)
+          }
+        });
       }
       return;
     }

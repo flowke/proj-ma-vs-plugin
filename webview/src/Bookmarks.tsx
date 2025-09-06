@@ -546,12 +546,16 @@ export default function Bookmarks() {
         if (success) {
           message.success('书签添加成功');
           setShowAddModal(false);
+          setShowQuickAddModal(false);
           form.resetFields();
+          quickAddForm.resetFields();
         } else {
           message.error(error || '添加书签失败');
           // 失败时也要关闭弹窗
           setShowAddModal(false);
+          setShowQuickAddModal(false);
           form.resetFields();
+          quickAddForm.resetFields();
         }
       }
       
@@ -563,12 +567,16 @@ export default function Bookmarks() {
         if (success) {
           message.success('书签添加成功');
           setShowAddModal(false);
+          setShowQuickAddModal(false);
           form.resetFields();
+          quickAddForm.resetFields();
         } else {
           message.error(error || '添加书签失败');
           // 失败时也要关闭弹窗
           setShowAddModal(false);
+          setShowQuickAddModal(false);
           form.resetFields();
+          quickAddForm.resetFields();
         }
       }
       
