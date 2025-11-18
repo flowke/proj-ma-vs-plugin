@@ -15,21 +15,21 @@ export default function Settings() {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const message = event.data;
-      
+
       if (message?.type === 'configLoaded' && message.payload) {
         setConfig(message.payload);
       }
     };
-    
+
     window.addEventListener('message', handler);
-    
+
     // 加载配置
     try {
       postMessage({ type: 'loadConfig' });
     } catch (e) {
       console.warn('[Settings] failed to request config load', e);
     }
-    
+
     return () => window.removeEventListener('message', handler);
   }, []);
 
@@ -61,7 +61,7 @@ export default function Settings() {
     navigate('/');
   };
 
-  const handleEditorChange = (editor: 'vscode' | 'cursor') => {
+  const handleEditorChange = (editor: 'vscode' | 'cursor' | 'kiro' | 'trae' | 'qoder') => {
     console.log('[Settings] handleEditorChange:', editor);
     if (!isVSCodeApiAvailable()) {
       console.warn('[Settings] VS Code API 不可用');
@@ -102,12 +102,12 @@ export default function Settings() {
   return (
     <div style={{ padding: '0', height: '100vh' }}>
       <div style={{ marginBottom: '8px', marginLeft: '8px' }}>
-        <Button 
-          type="text" 
-          icon={<ArrowLeftOutlined />} 
+        <Button
+          type="text"
+          icon={<ArrowLeftOutlined />}
           size='small'
           onClick={handleBack}
-          style={{ 
+          style={{
             color: 'var(--vscode-foreground)',
             padding: '4px 0',
             backgroundColor: 'transparent',
@@ -124,11 +124,11 @@ export default function Settings() {
           返回
         </Button>
       </div>
-      
-      <Title 
-        level={3} 
-        style={{ 
-          color: 'var(--vscode-foreground)', 
+
+      <Title
+        level={3}
+        style={{
+          color: 'var(--vscode-foreground)',
           marginBottom: '12px',
           fontSize: '16px',
           padding: '0 8px',
@@ -146,20 +146,20 @@ export default function Settings() {
         }}
         bodyStyle={{ padding: '8px' }}
       >
-        <Title 
-          level={4} 
-          style={{ 
-            color: 'var(--vscode-foreground)', 
+        <Title
+          level={4}
+          style={{
+            color: 'var(--vscode-foreground)',
             marginBottom: '8px',
             fontSize: '14px',
           }}
         >
           配置文件
         </Title>
-        
-        <Text 
-          style={{ 
-            color: 'var(--vscode-descriptionForeground)', 
+
+        <Text
+          style={{
+            color: 'var(--vscode-descriptionForeground)',
             display: 'block',
             marginBottom: '8px',
             fontSize: '12px',
@@ -210,10 +210,10 @@ export default function Settings() {
         }}
         bodyStyle={{ padding: '8px' }}
       >
-        <Title 
-          level={4} 
-          style={{ 
-            color: 'var(--vscode-foreground)', 
+        <Title
+          level={4}
+          style={{
+            color: 'var(--vscode-foreground)',
             marginBottom: '8px',
             fontSize: '14px',
           }}
@@ -221,10 +221,10 @@ export default function Settings() {
           <EditOutlined style={{ marginRight: '4px' }} />
           编辑器设置
         </Title>
-        
-        <div 
-          style={{ 
-            color: 'var(--vscode-descriptionForeground)', 
+
+        <div
+          style={{
+            color: 'var(--vscode-descriptionForeground)',
             display: 'block',
             marginBottom: '8px',
             fontSize: '12px',
@@ -234,14 +234,14 @@ export default function Settings() {
         </div>
 
         <Space direction="vertical" size="small" style={{ width: '100%' }}>
-          <Radio.Group 
-            value={config.settings.defaultEditor} 
+          <Radio.Group
+            value={config.settings.defaultEditor}
             onChange={(e) => handleEditorChange(e.target.value)}
             style={{ width: '100%', display: 'block' }}
           >
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <div
-                style={{ 
+                style={{
                   width: '100%',
                   padding: '2px 6px',
                   borderRadius: '3px',
@@ -250,9 +250,9 @@ export default function Settings() {
                   color: config.settings.defaultEditor === 'vscode' ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-foreground)'
                 }}
               >
-                <Radio 
+                <Radio
                   value="vscode"
-                  style={{ 
+                  style={{
                     width: '100%',
                     margin: 0,
                     color: 'inherit'
@@ -262,7 +262,7 @@ export default function Settings() {
                 </Radio>
               </div>
               <div
-                style={{ 
+                style={{
                   width: '100%',
                   padding: '2px 6px',
                   borderRadius: '3px',
@@ -271,15 +271,78 @@ export default function Settings() {
                   color: config.settings.defaultEditor === 'cursor' ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-foreground)'
                 }}
               >
-                <Radio 
+                <Radio
                   value="cursor"
-                  style={{ 
+                  style={{
                     width: '100%',
                     margin: 0,
                     color: 'inherit'
                   }}
                 >
                   Cursor
+                </Radio>
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  padding: '2px 6px',
+                  borderRadius: '3px',
+                  border: '1px solid transparent',
+                  backgroundColor: config.settings.defaultEditor === 'kiro' ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent',
+                  color: config.settings.defaultEditor === 'kiro' ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-foreground)'
+                }}
+              >
+                <Radio
+                  value="kiro"
+                  style={{
+                    width: '100%',
+                    margin: 0,
+                    color: 'inherit'
+                  }}
+                >
+                  Kiro
+                </Radio>
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  padding: '2px 6px',
+                  borderRadius: '3px',
+                  border: '1px solid transparent',
+                  backgroundColor: config.settings.defaultEditor === 'trae' ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent',
+                  color: config.settings.defaultEditor === 'trae' ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-foreground)'
+                }}
+              >
+                <Radio
+                  value="trae"
+                  style={{
+                    width: '100%',
+                    margin: 0,
+                    color: 'inherit'
+                  }}
+                >
+                  Trae
+                </Radio>
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  padding: '2px 6px',
+                  borderRadius: '3px',
+                  border: '1px solid transparent',
+                  backgroundColor: config.settings.defaultEditor === 'qoder' ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent',
+                  color: config.settings.defaultEditor === 'qoder' ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-foreground)'
+                }}
+              >
+                <Radio
+                  value="qoder"
+                  style={{
+                    width: '100%',
+                    margin: 0,
+                    color: 'inherit'
+                  }}
+                >
+                  Qoder
                 </Radio>
               </div>
             </div>
@@ -303,9 +366,9 @@ export default function Settings() {
           )}
 
           {!config.settings.defaultEditor && (
-            <Text 
-              style={{ 
-                color: 'var(--vscode-descriptionForeground)', 
+            <Text
+              style={{
+                color: 'var(--vscode-descriptionForeground)',
                 fontSize: '12px',
                 fontStyle: 'italic',
               }}

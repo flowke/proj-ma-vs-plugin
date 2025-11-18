@@ -2,28 +2,28 @@
 export interface ProjectConfig {
   // 版本号，用于配置文件升级
   version: string;
-  
+
   // 收藏的条目
   favorites: FavoriteItem[];
-  
+
   // 最近打开的条目
   recentlyOpened: RecentItem[];
-  
+
   // 通过+号新增的目录
   addedDirectories: AddedDirectory[];
-  
+
   // 网页书签分类
   bookmarkCategories: BookmarkCategory[];
-  
+
   // 代码仓库分类
   repositoryCategories: RepositoryCategory[];
-  
+
   // 设置项
   settings: {
     // 最近打开列表的最大长度
     maxRecentItems: number;
     // 默认编辑器设置
-    defaultEditor?: 'vscode' | 'cursor';
+    defaultEditor?: 'vscode' | 'cursor' | 'kiro' | 'trae' | 'qoder';
     // 其他设置可以在这里扩展
     [key: string]: any;
   };

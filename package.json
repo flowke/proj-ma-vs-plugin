@@ -3,7 +3,7 @@
   "displayName": "橡木山",
   "publisher": "your-publisher",
   "description": "VS Code / Cursor 扩展，集成 React + Ant Design Webview",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.84.0"
   },
